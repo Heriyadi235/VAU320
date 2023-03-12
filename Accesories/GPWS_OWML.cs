@@ -16,13 +16,13 @@ namespace A320VAU.Avionics
         public LayerMask groundLayers = -1;
         public QueryTriggerInteraction queryTriggerInteraction = QueryTriggerInteraction.UseGlobal;
         public Transform groundDetector, offsetTransorm;
-        public AudioClip[] altitudeCallouts = { };
         public float[] altitudeThresholds = { 5, 10, 20, 30, 40, 50, 100, 200, 400, 500, 1000, 2500 };
         public AudioClip bankAngleSound, sinkRateSound, pullUpSound, terrainSound, dontSinkSound, tooLowGearSound, tooLowFlapsSound, tooLowTerrainSound;
         public float initialClimbThreshold = 1333;
         public float smoothing = 1.0f;
         public float startDelay = 30;
-        public bool PullUpWarning {
+        public bool PullUpWarning
+        {
             private set;
             get;
         }
@@ -35,22 +35,11 @@ namespace A320VAU.Avionics
         private DFUNC_Gear gear;
         private DFUNC_Flaps flaps;
         private DFUNC_AdvancedFlaps advancedFlaps;
-        private int _calloutIndex = -1;
-        private void SetCalloutIndex(int value)
-        {
-            if (value < 0) value = altitudeCallouts.Length;
-
-            if (value == _calloutIndex) return;
-            if (value < _calloutIndex) AltitudeCallout(value);
-            _calloutIndex = value;
-        }
-
 
         private float enabledTime;
         private void OnEnable()
         {
             enabledTime = Time.time;
-            SetCalloutIndex(-1);
         }
 
         private float offset;
@@ -64,7 +53,7 @@ namespace A320VAU.Avionics
             flightData = vehicleRigidbody.GetComponentInChildren<YFI_FlightDataInterface>(true);
 
             audioSource = GetComponent<AudioSource>();
-            maxRange = altitudeThresholds[altitudeThresholds.Length - 1] * 2;
+            maxRange = 5000f;
             seaLevel = airVehicle.SeaLevel;
 
             offset = Vector3.Dot(groundDetector.up, offsetTransorm.position - groundDetector.position);
@@ -115,13 +104,10 @@ namespace A320VAU.Avionics
 
             prevLandingConfiguration = landingConfiguration;
 
-            SetCalloutIndex(GetAltitudeCalloutIndex(radioAltitude));
-
             var state = Mode1(barometricDecendRate, radioAltitude);
             state = Mathf.Min(state, Mode2(barometricDecendRate, radioAltitude, airspeed, barometricDecendRate, landingConfiguration));
             state = Mathf.Min(state, Mode3(barometricAltitudeLoss, radioAltitude, initialClimbing, landingConfiguration));
             if (!initialClimbing) state = Mathf.Min(state, Mode4(airspeed, radioAltitude, gearDown, anyFlapsDown));
-            state = Mathf.Min(state, Mode6(radioAltitude));
 
             state = (airVehicle.Taxiing || airVehicle.Floating) ? ALERT_NONE : state; //避免地面警报
 
@@ -152,21 +138,10 @@ namespace A320VAU.Avionics
             }
         }
 
-        private int GetAltitudeCalloutIndex(float altitude)
-        {
-            for (var i = 0; i < altitudeThresholds.Length; i++)
-            {
-                if (altitude < altitudeThresholds[i]) return i;
-            }
-
-            return -1;
-        }
-
         private const int ALERT_WINDSHEAR = 1;
         private const int ALERT_PULL_UP = 2;
         private const int ALERT_TERRAIN = 8;
         private const int ALERT_TOO_LOW_TERRAIN = 11;
-        private const int ALERT_ALTITUDE_CALLOUTS = 13;
         private const int ALERT_TOO_LOW_GEAR = 14;
         private const int ALERT_TOO_LOW_FLAPS = 15;
         private const int ALERT_SINK_RATE = 16;
@@ -177,7 +152,7 @@ namespace A320VAU.Avionics
         private const float Mode1LowerLimit = 30;
         private const float Mode1UpperLimit = 2450;
         private const float Mode1SinkRateSlope = (Mode1UpperLimit - Mode1LowerLimit) / (5000 - 998);
-        private const float Mode1SinkRateIntercept =  Mode1LowerLimit - 998 * Mode1SinkRateSlope;
+        private const float Mode1SinkRateIntercept = Mode1LowerLimit - 998 * Mode1SinkRateSlope;
         private const float Mode1PullUpSlope1 = (284 - Mode1LowerLimit) / (1710 - 1482);
         private const float Mode1PullUpIntercept1 = Mode1LowerLimit - 1482 * Mode1PullUpSlope1;
         private const float Mode1PullUpSlope2 = (Mode1UpperLimit - 284) / (7125 - 1710);
@@ -308,15 +283,6 @@ namespace A320VAU.Avionics
             return ALERT_NONE;
         }
 
-        private int altitudeCalloutIndex = -1;
-        private int Mode6AltitudeCallout(float barometricAltitue)
-        {
-            var nextIndex = GetAltitudeCalloutIndex(barometricAltitue);
-            var callout = nextIndex >= 0 && (altitudeCalloutIndex < 0 || nextIndex < altitudeCalloutIndex);
-            altitudeCalloutIndex = nextIndex;
-            if (callout) return ALERT_ALTITUDE_CALLOUTS;
-            return ALERT_NONE;
-        }
         private int Mode6BankAngle(float altitude)
         {
             if (altitude < 30 || altitude > 2500) return ALERT_NONE;
@@ -328,16 +294,7 @@ namespace A320VAU.Avionics
         }
         private int Mode6(float barometlicAltitude)
         {
-            var altitudeCallout = Mode6AltitudeCallout(barometlicAltitude);
-            if (altitudeCallout != ALERT_NONE) return altitudeCallout;
-
             return Mode6BankAngle(barometlicAltitude);
-        }
-
-        private void AltitudeCallout(int index)
-        {
-            if (index < 0 || index >= altitudeCallouts.Length) return;
-            PlayOneShot(altitudeCallouts[index]);
         }
 
         private void Alert(AudioClip clip, float interval)

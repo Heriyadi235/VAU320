@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c333ccfdd0cbdbc4ca30cef2dd6e6b9b, type: 3}
   m_Name: AirbusAvionicsTheme
   m_EditorClassIdentifier: 
-  serializedUdonProgramAsset: {fileID: 11400000, guid: ff50186292fa9654085473802c5a86b6,
+  serializedUdonProgramAsset: {fileID: 11400000, guid: e467cd74fae67434d967f21f26a2f399,
     type: 2}
   udonAssembly: 
   assemblyError: 
