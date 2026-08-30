@@ -1,4 +1,5 @@
 ﻿using A320VAU.Common;
+using A320VAU.FCU;
 using A320VAU.Utils;
 using Avionics.Systems.Common;
 using UdonSharp;
@@ -9,6 +10,7 @@ namespace A320VAU.FMGC {
     [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
     public class FMGCFlightPhase : UdonSharpBehaviour {
         public FMGC fmgc;
+        public FCU.FCU fcu;
 
         private DependenciesInjector _injector;
         private AircraftSystemData _aircraftSystemData;
@@ -28,8 +30,10 @@ namespace A320VAU.FMGC {
         public FlightPhase CurrentFlightPhase {
             get => _currentFlightPhase;
             set {
+                FlightPhase previousPhase = _currentFlightPhase;
                 _currentFlightPhase = value;
 
+                OnFlightPhaseChanged(previousPhase, value);
                 LogCurrentFlightPhase();
                 _eventBus.SendEvent("FlightPhaseChanged");
             }
@@ -62,6 +66,38 @@ namespace A320VAU.FMGC {
                 return;
 
             ShouldGoToNextPhase();
+        }
+
+        private void OnFlightPhaseChanged(FlightPhase fromPhase, FlightPhase toPhase) {
+            if (fcu == null) return;
+            if (toPhase == FlightPhase.PreFlight) { 
+                fcu.verticalMode = FCU.VerticalFlightMode.None;
+                fcu.lateralMode = FCU.LateralFlightMode.None;
+            }
+
+            // 1. 进入 Takeoff 阶段：推油门起飞时写入 SRS 与 RWY
+            if (toPhase == FlightPhase.Takeoff) {
+                fcu.verticalMode = VerticalFlightMode.SRS;
+                fcu.verticalGuidance = GuidanceMode.Managed;
+
+                fcu.lateralMode = LateralFlightMode.RWY;
+                fcu.lateralGuidance = GuidanceMode.Managed;
+            }
+
+            // 2. 达到加速高度进入 Climb 阶段：SRS 退场，自动切入 CLB 与 NAV
+            if (toPhase == FlightPhase.Climb) {
+                if (fcu.verticalMode == VerticalFlightMode.SRS) {
+                    fcu.verticalMode = (fcu.verticalGuidance == GuidanceMode.Managed)
+                        ? VerticalFlightMode.CLB
+                        : VerticalFlightMode.OP_CLB;
+                }
+
+                if (fcu.lateralMode == LateralFlightMode.RWY_TRK || fcu.lateralMode == LateralFlightMode.RWY) {
+                    fcu.lateralMode = (fcu.lateralGuidance == GuidanceMode.Managed)
+                        ? LateralFlightMode.NAV
+                        : LateralFlightMode.HDG;
+                }
+            }
         }
 
         private void LogCurrentFlightPhase() {
@@ -102,9 +138,18 @@ namespace A320VAU.FMGC {
                     }
                     break;
                 case FlightPhase.Takeoff:
+                    // 动态检测离地：主起落架离开地面后，跑道模式由 RWY 自动转为 RWY TRK
+                    if (fcu != null && fcu.lateralMode == LateralFlightMode.RWY) {
+                        if (!_injector.equipmentData.isAircraftGrounded) {
+                            fcu.lateralMode = LateralFlightMode.RWY_TRK;
+                            fcu.targetHeading = _adirud.irs.heading;
+                        }
+                    }
+
                     if (_adirud.adr.pressureAltitude >= accelerateAltitude) {
                         CurrentFlightPhase = FlightPhase.Climb;
                     }
+                    break;
 
                     break;
                 case FlightPhase.Climb:

@@ -8,6 +8,7 @@ using UdonSharp;
 using UnityEngine;
 using UnityEngine.UI;
 using VRC.SDKBase;
+using A320VAU.Avionics;
 
 namespace A320VAU.PFD {
     [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]//PFD需要网络同步！（LS按键，FD按键之类）
@@ -22,8 +23,9 @@ namespace A320VAU.PFD {
         private FCU.FCU _fcu;
         //private DFUNC_a320_FlapController _flaps;
         private SystemEventBus _eventBus;
+        public FlightDirector flightDirector;
 
-    #endregion
+        #endregion
 
         private VRCPlayerApi _localPlayer;
 
@@ -32,7 +34,6 @@ namespace A320VAU.PFD {
 
         [Header("EFIS Indicator")]
         public GameObject flightDirectionIndicator;
-
         public GameObject landingSystemIndicator;
 
         private float _altitude;
@@ -45,6 +46,7 @@ namespace A320VAU.PFD {
         [PublicAPI] public bool isFlightDirectionOn { get; private set; } = true;
         [PublicAPI] public bool isLandingSystemOn { get; private set; }
 
+        
         private void Start() {
             _injector = DependenciesInjector.GetInstance(this);
 
@@ -61,8 +63,7 @@ namespace A320VAU.PFD {
 
             // Reset Flight Direction and Landing System
             flightDirectionIndicator.SetActive(isFlightDirectionOn);
-            flightDirectionFail.SetActive(isFlightDirectionOn);
-
+            flightDirectorUI.SetActive(isFlightDirectionOn);
             landingSystem.SetActive(isLandingSystemOn);
             landingSystemIndicator.SetActive(isLandingSystemOn);
         }
@@ -72,8 +73,9 @@ namespace A320VAU.PFD {
             isLandingSystemOn = false;
 
             flightDirectionIndicator.SetActive(isFlightDirectionOn);
-            flightDirectionFail.SetActive(isFlightDirectionOn);
-
+            flightDirectorUI.SetActive(isFlightDirectionOn);
+            //flightDirectorFail.SetActive(isFlightDirectionOn);
+            //flightDirector.isFDOn = isFlightDirectionOn;
             landingSystem.SetActive(isLandingSystemOn);
             landingSystemIndicator.SetActive(isLandingSystemOn);
         }
@@ -104,7 +106,12 @@ namespace A320VAU.PFD {
 
         public GameObject landingSystem;
 
-        public GameObject flightDirectionFail;
+        public GameObject flightDirectorUI;
+        public GameObject flightDirectorFail;
+        public GameObject flightDirectorPitchBarObject;
+        public GameObject flightDirectorRollBarObject;
+        public GameObject flightDirectorYawBarObject;
+        public GameObject flightDirectorFpdTargetObject;
 
         [Header("Speed element")]
         public GameObject[] disableOnGround;
@@ -182,7 +189,9 @@ namespace A320VAU.PFD {
         private readonly int INPUT_X_HASH = Animator.StringToHash("PilotInputX");
         private readonly int INPUT_Y_HASH = Animator.StringToHash("PilotInputY");
         private readonly int SPEED_TREND = Animator.StringToHash("SpeedTrend");
-
+        
+        private readonly int animHashFDVer = Animator.StringToHash("FD_ver");
+        private readonly int animHashFDHor = Animator.StringToHash("FD_hor");
     #endregion
 
     #region Update
@@ -199,7 +208,7 @@ namespace A320VAU.PFD {
             //Altitude
             UpdateAltitude();
             //RH
-            UpdateRadioHeight();
+            UpdateRadioAltitude();
             //VS
             UpdateVerticalSpeed();
             //Heading
@@ -211,11 +220,13 @@ namespace A320VAU.PFD {
             //Slip
             UpdateSlip();
             //TrackPitch
-            UpdateTrickPitch();
+            UpdateTrackPitch();
 
             UpdateMachNumber();
 
             UpdatePilotInput();
+
+            UpdateFD();
         }
 
     #region Speed
@@ -249,17 +260,17 @@ namespace A320VAU.PFD {
 
             #region Target Speed
 
-            IndicatorAnimator.SetFloat(AIRSPEED_SECLECT_HASH, _fcu.TargetSpeed / 500f);
+            IndicatorAnimator.SetFloat(AIRSPEED_SECLECT_HASH, _fcu.targetSpeed / 500f);
 
-            TargetSpeedTopText.text = _fcu.TargetSpeed.ToString();
-            TargetSpeedBottomText.text = _fcu.TargetSpeed.ToString();
+            TargetSpeedTopText.text = _fcu.targetSpeed.ToString();
+            TargetSpeedBottomText.text = _fcu.targetSpeed.ToString();
 
             TargetSpeedBottom.SetActive(false);
             TargetSpeedTop.SetActive(false);
-            if (_adiru.adr.instrumentAirSpeed - _fcu.TargetSpeed > 45)
+            if (_adiru.adr.instrumentAirSpeed - _fcu.targetSpeed > 45)
                 TargetSpeedBottom.SetActive(true);
 
-            if (_fcu.TargetSpeed - _adiru.adr.instrumentAirSpeed > 45)
+            if (_fcu.targetSpeed - _adiru.adr.instrumentAirSpeed > 45)
                 TargetSpeedTop.SetActive(true);
 
             #endregion
@@ -379,7 +390,7 @@ namespace A320VAU.PFD {
             IndicatorAnimator.SetFloat(ALT10000_HASH, (int)(_altitude / 10000f) % 10 / 10f);
         }
 
-        private void UpdateRadioHeight() {
+        private void UpdateRadioAltitude() {
             if (!_radioAltimeter.isAvailable | RadioHeight > 2500f) {
                 RadioHeightText.gameObject.SetActive(false);
             }
@@ -436,7 +447,7 @@ namespace A320VAU.PFD {
                 Mathf.Clamp01((_adiru.irs.trackSlipAngle + MAXSLIPANGLE) / (MAXSLIPANGLE + MAXSLIPANGLE)));
         }
 
-        private void UpdateTrickPitch() {
+        private void UpdateTrackPitch() {
             IndicatorAnimator.SetFloat(TRKPCH_HASH,
                 Mathf.Clamp01((_adiru.irs.trackPitchAngle + MAXTRACKPITCH) / (MAXTRACKPITCH + MAXTRACKPITCH)));
         }
@@ -469,15 +480,50 @@ namespace A320VAU.PFD {
             IndicatorAnimator.SetFloat(INPUT_X_HASH, rotationInputs.z * 0.5f + 0.5f);
         }
 
-    #endregion
+        private void UpdateFD() {
+            if (flightDirector == null) return;
 
-    #region Touch Switch Event
+            // 1. 驱动 FD 运算逻辑（传入 PFD 当前解算的姿态数据）
+            flightDirector.UpdateFDLogic(_adiru.adr.instrumentAirSpeed, 
+                _adiru.adr.verticalSpeed, PitchAngle, BankAngle, 
+                _adiru.irs.heading, RadioHeight, 
+                _aircraftSystemData.isAircraftGrounded);
+
+            // 2. 将归一化偏转参数传给 Animator
+            if (IndicatorAnimator != null) {
+                IndicatorAnimator.SetFloat(animHashFDVer, flightDirector.fdVerNormalized);
+                IndicatorAnimator.SetFloat(animHashFDHor, flightDirector.fdHorNormalized);
+            }
+
+            // 3. 更新 UI 显示与隐藏模式 (Crossbars vs FPD 绿鸟模式)
+            if (!flightDirector.isFPDMode) {
+                // 十字杆模式
+                if (flightDirectorPitchBarObject != null) flightDirectorPitchBarObject.SetActive(flightDirector.isPitchBarVisible);
+                if (flightDirectorRollBarObject != null) flightDirectorRollBarObject.SetActive(flightDirector.isRollBarVisible);
+                if (flightDirectorYawBarObject != null) flightDirectorYawBarObject.SetActive(flightDirector.isYawBarVisible);
+                if (flightDirectorFpdTargetObject != null) flightDirectorFpdTargetObject.SetActive(false);
+            }
+            else {
+                // FPD (TRK-FPA) 绿鸟指引圈模式
+                if (flightDirectorPitchBarObject != null) flightDirectorPitchBarObject.SetActive(false);
+                if (flightDirectorRollBarObject != null) flightDirectorRollBarObject.SetActive(false);
+                if (flightDirectorYawBarObject != null) flightDirectorYawBarObject.SetActive(false);
+                if (flightDirectorFpdTargetObject != null) flightDirectorFpdTargetObject.SetActive(flightDirector.isPitchBarVisible || flightDirector.isRollBarVisible);
+            }
+        }
+
+        #endregion
+
+        #region Touch Switch Event
 
         [PublicAPI]
         public void ToggleFlightDirection() {
             isFlightDirectionOn = !isFlightDirectionOn;
             flightDirectionIndicator.SetActive(isFlightDirectionOn);
-            flightDirectionFail.SetActive(isFlightDirectionOn);
+
+            flightDirectorUI.SetActive(isFlightDirectionOn);
+            //flightDirector.isFDOn = isFlightDirectionOn;
+            //flightDirectorFail.SetActive(isFlightDirectionOn);
         }
 
         [PublicAPI]

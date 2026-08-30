@@ -67,6 +67,7 @@ namespace A320VAU.PFD {
                     break;
             }
 
+            /*
             if (_altHoldDFunc.AltHold) {
                 VerticalActiveMode = "ALT";
                 LateralActiveMode = "HDG";
@@ -77,7 +78,7 @@ namespace A320VAU.PFD {
                 LateralActiveMode = "";
                 IsAutoPilot1Active = false;
             }
-
+            */
             if (_cruiseDFunc.Cruise || _cruiseDFunc.isAutoThrustArm) {
                 IsAutoThrustActive = true;
                 IsAutoThrustArm = _cruiseDFunc.isAutoThrustArm;
@@ -384,7 +385,7 @@ namespace A320VAU.PFD {
             }
         }
 
-        [FieldChangeCallback(nameof(IsAutoBrakeActive))]
+        [FieldChangeCallback(nameof(IsAutoBrakeArm))]
         public bool _isAutoBrakeArm;
 
         public bool IsAutoBrakeArm {
