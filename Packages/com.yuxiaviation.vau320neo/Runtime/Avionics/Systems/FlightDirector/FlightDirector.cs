@@ -5,7 +5,7 @@ using VRC.SDKBase;
 using A320VAU.FCU;
 using VRC.Core;
 namespace A320VAU.Avionics {
-    public enum FDVerticalMode { OFF, SRS, OP_CLB, ALT, VS, FPA, OP_DES }
+    public enum FDVerticalMode { OFF, SRS, OP_CLB, ALT,ALT_STAR, VS, FPA, OP_DES }
     public enum FDLateralMode { OFF, RWY, RWY_TRK, HDG, NAV, TRK }
 
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
@@ -37,13 +37,14 @@ namespace A320VAU.Avionics {
         // 内部采样状态
         private VRCPlayerApi localPlayer;
 
-        private float currentIAS;
-        private float currentVertSpeed;
-        private float currentPitch;
-        private float currentRoll;
-        private float currentHeading;
-        private float currentAltitudeRA;
-        private bool isGrounded;
+        [SerializeField] private float currentIAS;
+        [SerializeField] private float currentVertSpeed;
+        [SerializeField] private float currentPitch;
+        [SerializeField] private float currentRoll;
+        [SerializeField] private float currentHeading;
+        [SerializeField] private float currentAltitudeRA;
+        [SerializeField] private float currentAltitude;
+        [SerializeField] private bool isGrounded;
 
         [HideInInspector] public float debugTargetPitch;
         [HideInInspector] public float debugCurrentPitch;
@@ -55,13 +56,14 @@ namespace A320VAU.Avionics {
             localPlayer = Networking.LocalPlayer;
         }
 
-        public void UpdateFDLogic(float IAS, float vs ,float pitch, float roll, float heading, float altRA, bool grounded) {
+        public void UpdateFDLogic(float IAS, float vs ,float pitch, float roll, float heading, float PressureAltitude,float altRA, bool grounded) {
             currentIAS = IAS;
             currentVertSpeed = vs;
             currentPitch = pitch;
             currentRoll = roll;
             currentHeading = heading;
             currentAltitudeRA = altRA;
+            currentAltitude = PressureAltitude;
             isGrounded = grounded;
 
 
@@ -78,6 +80,7 @@ namespace A320VAU.Avionics {
                 case FCU.VerticalFlightMode.SRS: vMode = FDVerticalMode.SRS; break;
                 case FCU.VerticalFlightMode.OP_CLB:
                 case FCU.VerticalFlightMode.CLB: vMode = FDVerticalMode.OP_CLB; break;
+                case FCU.VerticalFlightMode.ALT_STAR: vMode = FDVerticalMode.ALT_STAR; break;
                 case FCU.VerticalFlightMode.ALT_HOLD: vMode = FDVerticalMode.ALT; break;
                 case FCU.VerticalFlightMode.VS: vMode = FDVerticalMode.VS; break;
                 case FCU.VerticalFlightMode.FPA: vMode = FDVerticalMode.FPA; break;
@@ -136,6 +139,16 @@ namespace A320VAU.Avionics {
                 case FDVerticalMode.ALT:
                     // 高度保持：根据高度差换算目标俯仰（此处以保持当前平飞姿态为简易计算）
                     return 0.0f;
+                case FDVerticalMode.ALT_STAR:
+                    // 高度捕获，计算一个柔和的剖面
+                    float altDiff = fcu.targetAltitude - currentAltitude;
+
+                    // 使用比例增益将高度差转换为目标俯仰角（实现抛物线拉平）
+                    // 250ft 时 Pitch 约为 5°，随着高度差归零，Pitch 平滑收敛至 0°（平飞）
+                    float targetPitchDeg = Mathf.Clamp(altDiff * 0.02f, -3.0f, 6.0f);
+
+                    // 将计算好的俯仰目标赋予 FD 纵向偏转量
+                    return targetPitchDeg;
 
                 case FDVerticalMode.VS:
                     // V/S 模式：根据目标的垂直速度与当前真空速计算所需的俯仰角

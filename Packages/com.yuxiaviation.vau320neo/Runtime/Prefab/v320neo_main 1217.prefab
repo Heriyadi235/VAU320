@@ -166547,6 +166547,7 @@ MonoBehaviour:
   fcu: {fileID: 7840531968259032405}
   activeApproachKey: 57
   accelerateAltitude: 1500
+  _currentFlightPhase: 0
 --- !u!114 &2312726329336704168
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -172949,6 +172950,14 @@ MonoBehaviour:
   isRollBarVisible: 0
   isYawBarVisible: 0
   isFPDMode: 0
+  currentIAS: 0
+  currentVertSpeed: 0
+  currentPitch: 0
+  currentRoll: 0
+  currentHeading: 0
+  currentAltitudeRA: 0
+  currentAltitude: 0
+  isGrounded: 0
   debugTargetPitch: 0
   debugCurrentPitch: 0
   debugTargetRoll: 0

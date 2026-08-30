@@ -21,10 +21,12 @@ namespace A320VAU.FCU {
         private DFUNC_AltHold _altHoldDFunc;
         private DFUNC_a320_AutoThrust _cruiseDFunc;
         private DependenciesInjector _injector;
-        
+        private ADIRU.ADIRU _adiru;
+
         private readonly float UPDATE_INTERVAL = UpdateIntervalUtil.GetUpdateIntervalFromFPS(5);
         private float _lastUpdate;
 
+        [SerializeField] private float _current_altitude = 0f;
 
         [Header("--- SPEED / MACH WINDOW ---")]
         public float targetSpeed = 250f;            // 节(Knots) 或 Mach
@@ -158,6 +160,10 @@ namespace A320VAU.FCU {
         #region Altitude & VS Knob Events
         public void TurnAltitudeKnob(float delta) {
             targetAltitude = Mathf.Clamp(targetAltitude + delta * altitudeStep, 100f, 49000f);
+            if (verticalGuidance == GuidanceMode.Selected) {
+                isExpedActive = false;
+                verticalMode = (targetAltitude >= _current_altitude) ? VerticalFlightMode.OP_CLB : VerticalFlightMode.OP_DES;
+            }
         }
         public void ToggleAltitudeStep() {
             altitudeStep = (altitudeStep == 1000) ? 100 : 1000;
@@ -165,15 +171,33 @@ namespace A320VAU.FCU {
 
         public void PushAltitudeKnob() {
             verticalGuidance = GuidanceMode.Managed;
-            // 根据当前高度决定是CLB还是DES
-            verticalMode = VerticalFlightMode.CLB;
             isExpedActive = false;
+            verticalMode = (targetAltitude >= _current_altitude) ? VerticalFlightMode.CLB : VerticalFlightMode.DES;
         }
 
         public void PullAltitudeKnob() {
             verticalGuidance = GuidanceMode.Selected;
-            verticalMode = VerticalFlightMode.OP_CLB;
             isExpedActive = false;
+            verticalMode = (targetAltitude >= _current_altitude) ? VerticalFlightMode.OP_CLB : VerticalFlightMode.OP_DES;
+        }
+
+        public void PushVSKnobToLevelOff() {
+            verticalGuidance = GuidanceMode.Selected;
+            verticalMode = VerticalFlightMode.VS;
+            targetVS = 0f;
+            targetFPA = 0f;
+        }
+
+        public void PullVSKnob() {
+            verticalGuidance = GuidanceMode.Selected;
+            verticalMode = isTrkFpaMode ? VerticalFlightMode.FPA : VerticalFlightMode.VS;
+        }
+
+        public void TurnVSKnob(float delta) {
+            if (isTrkFpaMode)
+                targetFPA = Mathf.Clamp(targetFPA + delta * 0.1f, -9.9f, 9.9f);
+            else
+                targetVS = Mathf.Clamp(targetVS + delta * 100f, -6000f, 6000f);
         }
 
         public void TurnAltitudeKnobPlus1k() {
@@ -190,24 +214,9 @@ namespace A320VAU.FCU {
         public void TurnAltitudeKnobMinus1h() {
             TurnAltitudeKnob(-0.1f);
         }
-        public void TurnVSKnob(float delta) {
-            if (isTrkFpaMode)
-                targetFPA = Mathf.Clamp(targetFPA + delta * 0.1f, -9.9f, 9.9f);
-            else
-                targetVS = Mathf.Clamp(targetVS + delta * 100f, -6000f, 6000f);
-        }
+        
 
-        public void PushVSKnobToLevelOff() {
-            verticalGuidance = GuidanceMode.Selected;
-            verticalMode = VerticalFlightMode.VS;
-            targetVS = 0f;
-            targetFPA = 0f;
-        }
 
-        public void PullVSKnob() {
-            verticalGuidance = GuidanceMode.Selected;
-            verticalMode = isTrkFpaMode ? VerticalFlightMode.FPA : VerticalFlightMode.VS;
-        }
         #endregion
 
         #region FCU Buttons (AP, ATHR, APPR, LOC, EXPED)
@@ -331,6 +340,7 @@ namespace A320VAU.FCU {
                     case VerticalFlightMode.None: fmaController.VerticalActiveMode = ""; break;
                     case VerticalFlightMode.SRS: fmaController.VerticalActiveMode = "SRS"; break;
                     case VerticalFlightMode.ALT_HOLD: fmaController.VerticalActiveMode = "ALT"; break;
+                    case VerticalFlightMode.ALT_STAR: fmaController.VerticalActiveMode = "ALT*"; break;
                     case VerticalFlightMode.CLB: fmaController.VerticalActiveMode = "CLB"; break;
                     case VerticalFlightMode.OP_CLB: fmaController.VerticalActiveMode = "OP CLB"; break;
                     case VerticalFlightMode.DES: fmaController.VerticalActiveMode = "DES"; break;
@@ -344,7 +354,13 @@ namespace A320VAU.FCU {
                 // 纵向预组 (Armed)
                 if (apprStatus == ApprModeStatus.Armed && verticalMode != VerticalFlightMode.GS)
                     fmaController.VerticalArmMode = "G/S";
-                else
+                // 在爬升/下降过程中，若未进入 ALT* 或 ALT，自动预位 ALT
+                else if (verticalMode != VerticalFlightMode.ALT_HOLD &&
+                         verticalMode != VerticalFlightMode.ALT_STAR &&
+                         verticalMode != VerticalFlightMode.GS) {
+                    fmaController.VerticalArmMode = "ALT";
+                }
+            else
                     fmaController.VerticalArmMode = "";
             
 
@@ -372,12 +388,16 @@ namespace A320VAU.FCU {
             _injector = DependenciesInjector.GetInstance(this);
             _cruiseDFunc = _injector.autoThrust;
             _altHoldDFunc = _injector.altHold;
-            
+            _adiru = _injector.adiru;
+
         }
 
         private void LateUpdate() {
             if (!UpdateIntervalUtil.CanUpdate(ref _lastUpdate, UPDATE_INTERVAL)) return;
             targetSpeed = Convert.ToInt32(_cruiseDFunc.SetSpeed * 1.9438445f);
+
+            _current_altitude = _adiru.adr.pressureAltitude;
+            CheckAltitudeCapture();
             isFD1Active = PFD_PF.isFlightDirectionOn;
             isFD2Active = PFD_PM.isFlightDirectionOn;
             UpdateFCUDisplay();
@@ -385,130 +405,154 @@ namespace A320VAU.FCU {
             SyncToFMA(fmaController1);
         }
 
+        private void CheckAltitudeCapture() {
+            // 已在平飞或非高度控制模式下跳过检测
+            if (verticalMode == VerticalFlightMode.ALT_HOLD ||
+                verticalMode == VerticalFlightMode.GS ||
+                verticalMode == VerticalFlightMode.SRS) return;
 
-/*
-    #region Property
-        [FieldChangeCallback(nameof(FCUMode))] public FCUMode _fcuMode = FCUMode.HeadingVerticalSpeed;
-        public FCUMode FCUMode {
-            get => _fcuMode;
-            set {
-                _fcuMode = value;
-                UpdateFCUMode();
+            float altDiff = Mathf.Abs(_current_altitude - targetAltitude);
+
+            // 当接近目标高度（例如 50 英尺以内）时自动平飞切入 ALT_HOLD
+            // 1. 接近目标高度（如 250 英尺以内）：切入 ALT* (ALT Star) 捕获模式
+            if (altDiff <= 250f && altDiff > 20f) {
+                if (verticalMode != VerticalFlightMode.ALT_STAR) {
+                    verticalMode = VerticalFlightMode.ALT_STAR;
+                }
             }
+            // 2. 高度完全稳定（20 英尺以内）：由 ALT* 转换为 ALT_HOLD 保持模式
+            else if (altDiff <= 20f && verticalMode == VerticalFlightMode.ALT_STAR) {
+                verticalMode = VerticalFlightMode.ALT_HOLD;
+                targetVS = 0f;
+                targetFPA = 0f;
+                isExpedActive = false;
+            }
+
         }
 
-        [FieldChangeCallback(nameof(IsSpeedManaged))]
-        public bool _isSpeedManaged;
+        /*
+            #region Property
+                [FieldChangeCallback(nameof(FCUMode))] public FCUMode _fcuMode = FCUMode.HeadingVerticalSpeed;
+                public FCUMode FCUMode {
+                    get => _fcuMode;
+                    set {
+                        _fcuMode = value;
+                        UpdateFCUMode();
+                    }
+                }
 
-        public bool IsSpeedManaged {
-            get => _isSpeedManaged;
-            set {
-                _isSpeedManaged = value;
-                UpdateSpeedWindow();
-            }
-        }
+                [FieldChangeCallback(nameof(IsSpeedManaged))]
+                public bool _isSpeedManaged;
 
-        [FieldChangeCallback(nameof(TargetSpeed))]
-        public int _targetSpeed = 100;
+                public bool IsSpeedManaged {
+                    get => _isSpeedManaged;
+                    set {
+                        _isSpeedManaged = value;
+                        UpdateSpeedWindow();
+                    }
+                }
 
-        public int TargetSpeed {
-            get => _targetSpeed;
-            set {
-                _targetSpeed = value;
-                UpdateSpeedWindow();
-            }
-        }
+                [FieldChangeCallback(nameof(TargetSpeed))]
+                public int _targetSpeed = 100;
 
-        [FieldChangeCallback(nameof(IsMachSpeed))]
-        public bool _isMachSpeed;
+                public int TargetSpeed {
+                    get => _targetSpeed;
+                    set {
+                        _targetSpeed = value;
+                        UpdateSpeedWindow();
+                    }
+                }
 
-        public bool IsMachSpeed {
-            get => _isMachSpeed;
-            set {
-                _isMachSpeed = value;
-                UpdateSpeedWindow();
-            }
-        }
+                [FieldChangeCallback(nameof(IsMachSpeed))]
+                public bool _isMachSpeed;
 
-        [FieldChangeCallback(nameof(TargetMach))]
-        public double _targetMach = 0.6;
+                public bool IsMachSpeed {
+                    get => _isMachSpeed;
+                    set {
+                        _isMachSpeed = value;
+                        UpdateSpeedWindow();
+                    }
+                }
 
-        public double TargetMach {
-            get => _targetMach;
-            set {
-                _targetMach = value;
-                UpdateSpeedWindow();
-            }
-        }
+                [FieldChangeCallback(nameof(TargetMach))]
+                public double _targetMach = 0.6;
 
-        [FieldChangeCallback(nameof(IsHeadingManaged))]
-        public bool _isHeadingManaged;
+                public double TargetMach {
+                    get => _targetMach;
+                    set {
+                        _targetMach = value;
+                        UpdateSpeedWindow();
+                    }
+                }
 
-        public bool IsHeadingManaged {
-            get => _isHeadingManaged;
-            set {
-                _isHeadingManaged = value;
-                UpdateHeadingWindow();
-            }
-        }
+                [FieldChangeCallback(nameof(IsHeadingManaged))]
+                public bool _isHeadingManaged;
 
-        [FieldChangeCallback(nameof(TargetHeading))]
-        public int _targetHeading = 100;
+                public bool IsHeadingManaged {
+                    get => _isHeadingManaged;
+                    set {
+                        _isHeadingManaged = value;
+                        UpdateHeadingWindow();
+                    }
+                }
 
-        public int TargetHeading {
-            get => _targetHeading;
-            set {
-                _targetHeading = value;
-                UpdateHeadingWindow();
-            }
-        }
+                [FieldChangeCallback(nameof(TargetHeading))]
+                public int _targetHeading = 100;
 
-        [FieldChangeCallback(nameof(TargetAltitude))]
-        public int _targetAltitude = 100;
+                public int TargetHeading {
+                    get => _targetHeading;
+                    set {
+                        _targetHeading = value;
+                        UpdateHeadingWindow();
+                    }
+                }
 
-        public int TargetAltitude {
-            get => _targetAltitude;
-            set {
-                _targetAltitude = value;
-                UpdateAltitudeWindow();
-            }
-        }
+                [FieldChangeCallback(nameof(TargetAltitude))]
+                public int _targetAltitude = 100;
 
-        [FieldChangeCallback(nameof(IsVerticalSpeedManaged))]
-        public bool _isVerticalSpeedManaged;
+                public int TargetAltitude {
+                    get => _targetAltitude;
+                    set {
+                        _targetAltitude = value;
+                        UpdateAltitudeWindow();
+                    }
+                }
 
-        public bool IsVerticalSpeedManaged {
-            get => _isVerticalSpeedManaged;
-            set {
-                _isVerticalSpeedManaged = value;
-                UpdateVerticalSpeedWindow();
-            }
-        }
+                [FieldChangeCallback(nameof(IsVerticalSpeedManaged))]
+                public bool _isVerticalSpeedManaged;
 
-        [FieldChangeCallback(nameof(TargetVerticalSpeed))]
-        public int _targetVerticalSpeed;
+                public bool IsVerticalSpeedManaged {
+                    get => _isVerticalSpeedManaged;
+                    set {
+                        _isVerticalSpeedManaged = value;
+                        UpdateVerticalSpeedWindow();
+                    }
+                }
 
-        public int TargetVerticalSpeed {
-            get => _targetVerticalSpeed;
-            set {
-                _targetVerticalSpeed = value;
-                UpdateVerticalSpeedWindow();
-            }
-        }
+                [FieldChangeCallback(nameof(TargetVerticalSpeed))]
+                public int _targetVerticalSpeed;
 
-        [FieldChangeCallback(nameof(TargetFPA))]
-        public double _targetFPA;
+                public int TargetVerticalSpeed {
+                    get => _targetVerticalSpeed;
+                    set {
+                        _targetVerticalSpeed = value;
+                        UpdateVerticalSpeedWindow();
+                    }
+                }
 
-        public double TargetFPA {
-            get => _targetFPA;
-            set {
-                _targetFPA = value;
-                UpdateVerticalSpeedWindow();
-            }
-        }
+                [FieldChangeCallback(nameof(TargetFPA))]
+                public double _targetFPA;
 
-    #endregion
-*/
+                public double TargetFPA {
+                    get => _targetFPA;
+                    set {
+                        _targetFPA = value;
+                        UpdateVerticalSpeedWindow();
+                    }
+                }
+
+            #endregion
+        */
 
     }
 
@@ -529,6 +573,7 @@ namespace A320VAU.FCU {
     }
     public enum VerticalFlightMode {
         ALT_HOLD,   // 高度层保持
+        ALT_STAR,
         CLB,        // 管理爬升
         DES,        // 管理下降
         OP_CLB,     // 开放爬升
@@ -563,11 +608,26 @@ public class A320_FCUEditor : Editor {
         // 绘制默认面板属性
         DrawDefaultInspector();
 
-        FCU fcu = (FCU)target;
+        var fcu = (FCU)target;
 
         EditorGUILayout.Space(15);
         EditorGUILayout.HelpBox("【FCU 模拟测试控制台】", MessageType.Info);
+        EditorGUILayout.Space(5);
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("targetSpeed"));
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("speedGuidance"));
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("targetHeading"));
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("isTrkFpaMode"));
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("lateralGuidance"));
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("lateralMode"));
 
+        EditorGUILayout.Space(5);
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("targetAltitude"));
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("targetVS"));
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("targetFPA"));
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("verticalGuidance"));
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("verticalMode"));
+
+        EditorGUILayout.Space(5);
         // --- SPEED SECTION ---
         EditorGUILayout.LabelField("1. Speed / Mach Controls", EditorStyles.boldLabel);
         EditorGUILayout.BeginHorizontal();

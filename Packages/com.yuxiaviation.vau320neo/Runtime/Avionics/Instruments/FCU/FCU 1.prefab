@@ -3475,7 +3475,7 @@ MonoBehaviour:
   targetFPA: 0
   altitudeStep: 1000
   verticalGuidance: 0
-  verticalMode: 10
+  verticalMode: 11
   isAP1Active: 0
   isAP2Active: 0
   isFD1Active: 1

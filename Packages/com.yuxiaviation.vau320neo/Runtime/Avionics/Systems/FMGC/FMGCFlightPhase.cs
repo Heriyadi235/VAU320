@@ -26,7 +26,7 @@ namespace A320VAU.FMGC {
         private float _touchDownAt = -1f;
 
         [FieldChangeCallback(nameof(CurrentFlightPhase))]
-        private FlightPhase _currentFlightPhase = FlightPhase.PreFlight;
+        [SerializeField] private FlightPhase _currentFlightPhase = FlightPhase.PreFlight;
         public FlightPhase CurrentFlightPhase {
             get => _currentFlightPhase;
             set {
@@ -151,7 +151,6 @@ namespace A320VAU.FMGC {
                     }
                     break;
 
-                    break;
                 case FlightPhase.Climb:
                     if (Mathf.Approximately(_adirud.adr.pressureAltitude, fmgc.flightPlan.cruiseAltitude) ||
                         _adirud.adr.pressureAltitude >= fmgc.flightPlan.cruiseAltitude) {

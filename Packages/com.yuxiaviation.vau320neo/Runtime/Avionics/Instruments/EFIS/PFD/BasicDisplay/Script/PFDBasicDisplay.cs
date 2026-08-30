@@ -486,7 +486,9 @@ namespace A320VAU.PFD {
             // 1. 驱动 FD 运算逻辑（传入 PFD 当前解算的姿态数据）
             flightDirector.UpdateFDLogic(_adiru.adr.instrumentAirSpeed, 
                 _adiru.adr.verticalSpeed, PitchAngle, BankAngle, 
-                _adiru.irs.heading, RadioHeight, 
+                _adiru.irs.heading, 
+                _adiru.adr.pressureAltitude,
+                RadioHeight, 
                 _aircraftSystemData.isAircraftGrounded);
 
             // 2. 将归一化偏转参数传给 Animator
