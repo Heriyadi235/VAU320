@@ -33,7 +33,8 @@ namespace A320VAU.Avionics {
         [HideInInspector] public bool isRollBarVisible = false;
         [HideInInspector] public bool isYawBarVisible = false;
         [HideInInspector] public bool isFPDMode = false;       // 是否为 TRK-FPA 绿鸟模式
-
+        public float targetRoll;
+        public float targetPitch;
         // 内部采样状态
         private VRCPlayerApi localPlayer;
 
@@ -108,10 +109,10 @@ namespace A320VAU.Avionics {
             //还差 SRS 与 RWY RWY_TRK
 
             // 1. 计算纵向目标 (Pitch / FPA)
-            float targetPitch = CalculateTargetPitch(vMode);
+            targetPitch = CalculateTargetPitch(vMode);
 
             // 2. 计算横向目标 (Roll / TRK)
-            float targetRoll = CalculateTargetRoll(lMode);
+            targetRoll = CalculateTargetRoll(lMode);
 
             // 3. 计算偏差与归一化 [0.0, 1.0]
             float pitchError = targetPitch - currentPitch;

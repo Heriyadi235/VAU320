@@ -172950,6 +172950,8 @@ MonoBehaviour:
   isRollBarVisible: 0
   isYawBarVisible: 0
   isFPDMode: 0
+  targetRoll: 0
+  targetPitch: 0
   currentIAS: 0
   currentVertSpeed: 0
   currentPitch: 0
@@ -174854,18 +174856,19 @@ MonoBehaviour:
     PrefabModifications: []
     SerializationNodes: []
   _udonSharpBackingUdonBehaviour: {fileID: 811661276443160679}
-  currentAP: 0
+  SAVControl: {fileID: 3572449966251728710}
+  flightDirector: {fileID: 9147337798364787225}
   fcu: {fileID: 7840531968259032405}
-  currentSpeed: 200
-  currentHeading: 360
-  currentAltitude: 5000
-  currentVS: 0
-  hasValidILS: 0
-  locDeviation: 0
-  gsDeviation: 0
-  pitchOutput: 0
-  rollOutput: 0
-  thrustOutput: 0
+  adiru: {fileID: 226584409852324056}
+  pitchP: 0.08
+  pitchI: 0.02
+  pitchD: 0.015
+  rollP: 0.05
+  rollD: 0.01
+  yawDamp: 10
+  gLimitMax: 2.5
+  gLimitMin: -1
+  aoaLimiter: 12
 --- !u!114 &811661276443160679
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -184412,6 +184415,7 @@ MonoBehaviour:
   - {fileID: 5868115217746860467}
   - {fileID: 5339678824821627398}
   - {fileID: 159268732536603828}
+  - {fileID: 1651102592329739379}
   Dial_Functions_L:
   - {fileID: 5648603156876810057}
   - {fileID: 2735652594080371455}
