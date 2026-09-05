@@ -13,11 +13,14 @@ namespace A320VAU.Interaction {
         [Tooltip("接收事件的目标 Udon 脚本 (如 FCU 主控)")]
         public UdonSharpBehaviour targetBehaviour;
 
+        [Tooltip("所属的 KnobGroup 管理器 (可在 KnobGroup 中自动绑定)")]
+        public KnobGroup knobGroup;
+
         [Header("--- Knob Options Arrays (各数组长度保持一致) ---")]
         public string[] optionNames;
         [Tooltip("每个选项对应的高亮 TMP")]
         public TextMeshProUGUI[] highlightGraphics;
-        [Tooltip("扳机/左键点击时调用的事件名")]
+        [Tooltip("按下摇杆/鼠标中键点击时调用的事件名")]
         public string[] onClickEventNames;
         [Tooltip("手腕顺时针 / 滚轮向上时调用的事件名")]
         public string[] onClockwiseEventNames;
@@ -91,8 +94,12 @@ namespace A320VAU.Interaction {
             if (isVR && isHandInside) {
                 HandleStickSelection();
                 HandleVRWristRotation();
+                
             }
             if (!isVR && isMenuVisible){
+                if (Input.GetKeyDown(KeyCode.Mouse0)) {
+                    CloseMenu();
+                }
                 HandleRMBSelection();
                 HandlePCMouseScroll();
             }
@@ -174,7 +181,12 @@ namespace A320VAU.Interaction {
                         if (isTriggerPressed)//并且正在按下扳机
                         {
                             if (!isMenuVisible) {
-                                SetMenuVisible(true);
+                                if (knobGroup != null) {
+                                    knobGroup.RequestOpenMenu(this);
+                                }
+                                else {
+                                    OpenMenu();
+                                }
                             }
                             else {
                                 //HandleStickSelection();
@@ -182,7 +194,8 @@ namespace A320VAU.Interaction {
                             }
                         }
                         else {
-                            SetMenuVisible(false);
+                            // 如果自己当前是开启状态，再次点击左键则关闭
+                            CloseMenu();
                         }
                     }
                     //如果手正在离开按钮
@@ -196,10 +209,23 @@ namespace A320VAU.Interaction {
 
 
         // 1. PC 鼠标点击碰撞体打开或关闭菜单
+        // PC 模式下的鼠标左键点击交互
         public override void Interact() {
-            //切换菜单激活状态，只有PC才能Interact 
-            SetMenuVisible(!isMenuVisible);
-            this.enabled = isMenuVisible;
+            if (isVR) return;
+
+            if (isMenuVisible) {
+                // 如果自己当前是开启状态，再次点击左键则关闭
+                CloseMenu();
+            }
+            else {
+                // 如果自己未开启，向组管理器请求开启（组管理器会自动关掉其他已开启的旋钮）
+                if (knobGroup != null) {
+                    knobGroup.RequestOpenMenu(this);
+                }
+                else {
+                    OpenMenu();
+                }
+            }
         }
 
         // 2. VR 下使用手柄摇杆切换菜单选项
@@ -276,7 +302,18 @@ namespace A320VAU.Interaction {
             lastHandRotation = currentRot;
             }
         }
+        public void OpenMenu() {
+            SetMenuVisible(true);
+            this.enabled = true;
+        }
 
+        public void CloseMenu() {
+            SetMenuVisible(false);
+            this.enabled = false;
+            if (knobGroup != null) {
+                knobGroup.OnMenuClosed(this);
+            }
+        }
 
         // 5. 内部通用方法
         private void SendEventToTarget(string[] eventNameArray) {
