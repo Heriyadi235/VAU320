@@ -1,9 +1,6 @@
 ﻿namespace A320VAU.FWS {
     public partial class FWSWarningData {
-        private FWSWarningMessageData OVERSPEED;
-        private int VLE = 280;
 
-        private int VMO = 350;
 
         private void SetupSpeed() {
             OVERSPEED = GetWarningMessageData(nameof(OVERSPEED));

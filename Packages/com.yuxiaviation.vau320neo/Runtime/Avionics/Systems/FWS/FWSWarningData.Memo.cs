@@ -1,10 +1,5 @@
 namespace A320VAU.FWS {
     public partial class FWSWarningData {
-        private FWSWarningMessageData APU_AVAIL;
-        private FWSWarningMessageData APU_BLEED;
-        private FWSWarningMessageData PARK_BRK;
-        private FWSWarningMessageData SEAT_BELTS;
-        private FWSWarningMessageData NO_SMOKING;
 
         private void SetupMemo() {
             APU_BLEED = GetWarningMessageData(nameof(APU_BLEED));

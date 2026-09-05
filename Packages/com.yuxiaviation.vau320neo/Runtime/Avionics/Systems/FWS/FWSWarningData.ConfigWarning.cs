@@ -2,8 +2,6 @@ using UnityEngine;
 
 namespace A320VAU.FWS {
     public partial class FWSWarningData {
-        private FWSWarningMessageData FLAPS_NOT_IN_TAKEOFF_CONFIG;
-        private FWSWarningMessageData PARK_BRAKE_ON;
 
         private void SetupConfig() {
             FLAPS_NOT_IN_TAKEOFF_CONFIG = GetWarningMessageData(nameof(FLAPS_NOT_IN_TAKEOFF_CONFIG));

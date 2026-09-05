@@ -1,20 +1,5 @@
 ﻿namespace A320VAU.FWS {
     public partial class FWSWarningData {
-        private FWSWarningMessageData DUAL_ENGINE_FAULT;
-
-        private FWSWarningMessageData ENGINE1_EGT_OVERLIMIT;
-
-        private FWSWarningMessageData ENGINE1_FAIL;
-        private FWSWarningMessageData ENGINE1_FIRE;
-        private FWSWarningMessageData ENGINE1_N1_OVERLIMIT;
-        private FWSWarningMessageData ENGINE1_N2_OVERLIMIT;
-
-        private FWSWarningMessageData ENGINE1_SHUT_DOWN;
-        private FWSWarningMessageData ENGINE2_EGT_OVERLIMIT;
-        private FWSWarningMessageData ENGINE2_FAIL;
-        private FWSWarningMessageData ENGINE2_FIRE;
-        private FWSWarningMessageData ENGINE2_N1_OVERLIMIT;
-        private FWSWarningMessageData ENGINE2_N2_OVERLIMIT;
 
         private void SetupEngine() {
             ENGINE1_FIRE = GetWarningMessageData(nameof(ENGINE1_FIRE));

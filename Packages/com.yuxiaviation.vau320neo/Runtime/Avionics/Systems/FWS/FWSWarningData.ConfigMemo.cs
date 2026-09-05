@@ -3,8 +3,7 @@ using UnityEngine;
 
 namespace A320VAU.FWS {
     public partial class FWSWarningData : UdonSharpBehaviour {
-        private FWSWarningMessageData LANDING_MEMO;
-        private FWSWarningMessageData TAKEOFF_MEMO;
+
 
         private void SetupConfigMemo() {
             TAKEOFF_MEMO = GetWarningMessageData(nameof(TAKEOFF_MEMO));
