@@ -6,25 +6,47 @@ namespace A320VAU.Avionics {
     [CustomEditor(typeof(FlightDirector))]
     public class FlightDirectorEditor : UnityEditor.Editor {
         public override void OnInspectorGUI() {
-            FlightDirector fd = (FlightDirector)target;
+            // 绘制默认面板属性
+            DrawDefaultInspector();
 
+            FlightDirector fd = (FlightDirector)target;
             // 绘制默认属性
             serializedObject.Update();
 
+            /*
             EditorGUILayout.Space(5);
-            EditorGUILayout.LabelField("--- 核心引用与参数配置 ---", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("--- 引用 ---", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(serializedObject.FindProperty("fcu"));
-
-            EditorGUILayout.Space(10);
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("fmgc"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("maxPitchDev"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("maxRollDev"));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("headingKp"));
+            
+            EditorGUILayout.Space(10);
+            EditorGUILayout.LabelField("--- 状态 ---", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(serializedObject.FindProperty("vMode"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("lMode"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("isFDOn"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("currentRWYHeading"));
-            EditorGUILayout.Space(10);
             
+            EditorGUILayout.Space(10);
+
+            EditorGUILayout.LabelField("--- 控制器 ---", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("altHoldKp"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("altHoldKi"));
+            EditorGUILayout.Space(2);
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("altStarKp"));
+            EditorGUILayout.Space(2);
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("altDiff"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("altDiff"));
+            
+            EditorGUILayout.Space(4);
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("opKp"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("speedDiff"));
+
+            EditorGUILayout.Space(4);
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("headingKp"));
+
+            */
             EditorGUILayout.LabelField("--- 动态运行监视 (Live Readout) ---", EditorStyles.boldLabel);
 
             // 在 Editor 下以进度条方式直观监视归一化动画输出 [0, 1]

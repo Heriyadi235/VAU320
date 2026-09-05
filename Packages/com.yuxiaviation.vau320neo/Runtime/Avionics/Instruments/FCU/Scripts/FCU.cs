@@ -1,9 +1,11 @@
 ﻿using System;
+using A320VAU.Avionics;
 using A320VAU.Common;
 using A320VAU.FCU;
 using A320VAU.PFD;
 using A320VAU.SFEXT;
 using A320VAU.Utils;
+using Avionics.Systems.Common;
 using EsnyaSFAddons.Weather;
 using SaccFlightAndVehicles;
 using TMPro;
@@ -13,15 +15,17 @@ using UnityEngine;
 using UnityEngine.UI;
 
 namespace A320VAU.FCU {
+    [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]//FCU会同步，FD与AP不会同步，按键事件会被发送给owner
     public class FCU : UdonSharpBehaviour {
         public FMAController fmaController1;
         public FMAController fmaController2;
         public PFDBasicDisplay PFD_PF;
         public PFDBasicDisplay PFD_PM;
         private DFUNC_AltHold _altHoldDFunc;
-        private DFUNC_a320_AutoThrust _cruiseDFunc;
+        private DFUNC_a320_AutoThrust _ATHRDFunc;
         private DependenciesInjector _injector;
         private ADIRU.ADIRU _adiru;
+        [SerializeField] private AircraftSystemData _aircraftSystemData;
 
         private readonly float UPDATE_INTERVAL = UpdateIntervalUtil.GetUpdateIntervalFromFPS(5);
         private float _lastUpdate;
@@ -116,6 +120,8 @@ namespace A320VAU.FCU {
                 targetSpeed = Mathf.Clamp(targetSpeed + delta * 0.01f, 0.10f, 0.99f);
             else
                 targetSpeed = Mathf.Clamp(targetSpeed + delta, 100f, 390f);
+            
+            _ATHRDFunc.SetSpeed = Convert.ToInt32(targetSpeed / 1.9438445f);
         }
         public void PushSpeedKnob() {
             speedGuidance = GuidanceMode.Managed;
@@ -123,7 +129,10 @@ namespace A320VAU.FCU {
         public void PullSpeedKnob() {
             speedGuidance = GuidanceMode.Selected;
         }
-
+        public void TurnSpeedKnobPlus10() => TurnSpeedKnob(10);
+        public void TurnSpeedKnobPlus1() => TurnSpeedKnob(1);
+        public void TurnSpeedKnobMinus10() => TurnSpeedKnob(-10);
+        public void PushSpeedKnobMinus1() => TurnSpeedKnob(-1);
         public void ToggleSpdMach() {
             isMachMode = !isMachMode;
             // 单位转换逻辑示例
@@ -145,6 +154,11 @@ namespace A320VAU.FCU {
             if (locStatus == ApprModeStatus.Engaged) locStatus = ApprModeStatus.Off;
         }
 
+        public void TurnHeadingKnobPlus10() => TurnHeadingKnob(10);
+        public void TurnHeadingKnobPlus1() => TurnHeadingKnob(1);
+        public void TurnHeadingKnobMinus10() => TurnHeadingKnob(-10);
+        public void PushHeadingKnobMinus1() => TurnHeadingKnob(-1);
+
         public void PullHeadingKnob() {
             lateralGuidance = GuidanceMode.Selected;
             lateralMode = LateralFlightMode.HDG;
@@ -162,7 +176,7 @@ namespace A320VAU.FCU {
             targetAltitude = Mathf.Clamp(targetAltitude + delta * altitudeStep, 100f, 49000f);
             if (verticalGuidance == GuidanceMode.Selected) {
                 isExpedActive = false;
-                verticalMode = (targetAltitude >= _current_altitude) ? VerticalFlightMode.OP_CLB : VerticalFlightMode.OP_DES;
+                verticalMode = (targetAltitude >= _current_altitude && Mathf.Abs(_current_altitude - targetAltitude)>100) ? VerticalFlightMode.OP_CLB : VerticalFlightMode.OP_DES;
             }
         }
         public void ToggleAltitudeStep() {
@@ -172,13 +186,13 @@ namespace A320VAU.FCU {
         public void PushAltitudeKnob() {
             verticalGuidance = GuidanceMode.Managed;
             isExpedActive = false;
-            verticalMode = (targetAltitude >= _current_altitude) ? VerticalFlightMode.CLB : VerticalFlightMode.DES;
+            verticalMode = (targetAltitude >= _current_altitude && Mathf.Abs(_current_altitude - targetAltitude) > 100) ? VerticalFlightMode.CLB : VerticalFlightMode.DES;
         }
 
         public void PullAltitudeKnob() {
             verticalGuidance = GuidanceMode.Selected;
             isExpedActive = false;
-            verticalMode = (targetAltitude >= _current_altitude) ? VerticalFlightMode.OP_CLB : VerticalFlightMode.OP_DES;
+            verticalMode = (targetAltitude >= _current_altitude && Mathf.Abs(_current_altitude - targetAltitude) > 100) ? VerticalFlightMode.OP_CLB : VerticalFlightMode.OP_DES;
         }
 
         public void PushVSKnobToLevelOff() {
@@ -214,21 +228,71 @@ namespace A320VAU.FCU {
         public void TurnAltitudeKnobMinus1h() {
             TurnAltitudeKnob(-0.1f);
         }
-        
 
+        public void TurnVSKnoblus5h() => TurnVSKnob(5);
+        public void TurnVSKnobPlus1h() => TurnVSKnob(1);
+        public void TurnVSKnobMinus5h() => TurnVSKnob(-5);
+        public void TurnVSKnobbMinus1h() => TurnVSKnob(-1);
 
         #endregion
 
         #region FCU Buttons (AP, ATHR, APPR, LOC, EXPED)
         public void PressAP1() {
-            isAP1Active = !isAP1Active;
+            // 1. 地面保护 / 姿态保护：地面禁止接通 AP（离地后才允许）
+            if (_aircraftSystemData.isAircraftGrounded) {
+                isAP1Active = false;
+                return; 
+            }
+
+            // 2. 如果 AP1 当前已经是接通状态 -> 执行【关断】逻辑
+            if (isAP1Active) {
+                isAP1Active = false;
+                // 此处可触发 AP 脱开音响或主警告逻辑
+                return;
+            }
+
+            // 3. 如果 AP1 当前是关闭状态 -> 执行【接通】逻辑
+            // 判断是否满足双 AP 共存条件：进近模式处于 Armed 或 Active
+            bool isApprModeAvailable = (apprStatus == ApprModeStatus.Armed || apprStatus == ApprModeStatus.Engaged);
+
+            if (!isApprModeAvailable) {
+                // 非进近模式下，AP1 与 AP2 严格互斥：接通 AP1 必须强行断开 AP2
+                isAP2Active = false;
+            }
+
+            // 接通 AP1
+            isAP1Active = true;
         }
 
         public void PressAP2() {
-            isAP2Active = !isAP2Active;
+            // 1. 地面保护 / 姿态保护：地面禁止接通 AP（离地后才允许）
+            if (_aircraftSystemData.isAircraftGrounded) {
+                isAP2Active = false;
+                return;
+            }
+
+            // 2. 如果 AP1 当前已经是接通状态 -> 执行【关断】逻辑
+            if (isAP2Active) {
+                isAP2Active = false;
+                // 此处可触发 AP 脱开音响或主警告逻辑
+                return;
+            }
+
+            // 3. 如果 AP1 当前是关闭状态 -> 执行【接通】逻辑
+            // 判断是否满足双 AP 共存条件：进近模式处于 Armed 或 Active
+            bool isApprModeAvailable = (apprStatus == ApprModeStatus.Armed || apprStatus == ApprModeStatus.Engaged);
+
+            if (!isApprModeAvailable) {
+                // 非进近模式下，AP1 与 AP2 严格互斥：接通 AP1 必须强行断开 AP2
+                isAP1Active = false;
+            }
+
+            // 接通 AP1
+            isAP2Active = true;
         }
 
         public void PressATHR() {
+            
             isATHRActive = !isATHRActive;
         }
 
@@ -298,6 +362,7 @@ namespace A320VAU.FCU {
             SetActiveSafe(HeadingManagedIndicate, lateralGuidance == GuidanceMode.Managed);
             SetActiveSafe(VerticalSpeedManagedIndicate, verticalGuidance == GuidanceMode.Managed);
 
+
             SetActiveSafe(ap1Light, isAP1Active);
             SetActiveSafe(ap2Light, isAP2Active);
             SetActiveSafe(athrLight, isATHRActive);
@@ -336,57 +401,123 @@ namespace A320VAU.FCU {
             fmaController.IsFlightDirector2Active = isFD2Active;
             fmaController.IsAutoThrustActive = isATHRActive;
             // 2. 将纵向模式映射为 FMA 文本
-                switch (verticalMode) {
-                    case VerticalFlightMode.None: fmaController.VerticalActiveMode = ""; break;
-                    case VerticalFlightMode.SRS: fmaController.VerticalActiveMode = "SRS"; break;
-                    case VerticalFlightMode.ALT_HOLD: fmaController.VerticalActiveMode = "ALT"; break;
-                    case VerticalFlightMode.ALT_STAR: fmaController.VerticalActiveMode = "ALT*"; break;
-                    case VerticalFlightMode.CLB: fmaController.VerticalActiveMode = "CLB"; break;
-                    case VerticalFlightMode.OP_CLB: fmaController.VerticalActiveMode = "OP CLB"; break;
-                    case VerticalFlightMode.DES: fmaController.VerticalActiveMode = "DES"; break;
-                    case VerticalFlightMode.OP_DES: fmaController.VerticalActiveMode = "OP DES"; break;
-                    case VerticalFlightMode.VS: fmaController.VerticalActiveMode = "V/S"; break;
-                    case VerticalFlightMode.FPA: fmaController.VerticalActiveMode = "FPA"; break;
-                    case VerticalFlightMode.GS: fmaController.VerticalActiveMode = "G/S"; break;
-                    case VerticalFlightMode.EXPED: fmaController.VerticalActiveMode = "EXPED"; break;
-                    default: fmaController.VerticalActiveMode = ""; break;
-                }
-                // 纵向预组 (Armed)
-                if (apprStatus == ApprModeStatus.Armed && verticalMode != VerticalFlightMode.GS)
-                    fmaController.VerticalArmMode = "G/S";
-                // 在爬升/下降过程中，若未进入 ALT* 或 ALT，自动预位 ALT
-                else if (verticalMode != VerticalFlightMode.ALT_HOLD &&
-                         verticalMode != VerticalFlightMode.ALT_STAR &&
-                         verticalMode != VerticalFlightMode.GS) {
-                    fmaController.VerticalArmMode = "ALT";
-                }
-            else
-                    fmaController.VerticalArmMode = "";
-            
+            //激活
+            switch (verticalMode) {
+                case VerticalFlightMode.None:
+                    fmaController.VerticalActiveMode = "";
+                    break;
+                case VerticalFlightMode.ALT_HOLD:
+                    fmaController.VerticalActiveMode = "ALT";
+                    break;
+                case VerticalFlightMode.ALT_STAR:
+                    fmaController.VerticalActiveMode = "ALT*";
+                    break;
+                case VerticalFlightMode.OP_CLB:
+                    fmaController.VerticalActiveMode = "OP CLB";
+                    break;
+                case VerticalFlightMode.OP_DES:
+                    fmaController.VerticalActiveMode = "OP DES";
+                    break;
+                case VerticalFlightMode.SRS:
+                    fmaController.VerticalActiveMode = "SRS";
+                    break;
+
+                case VerticalFlightMode.CLB:
+                    fmaController.VerticalActiveMode = "CLB";
+                    break;
+
+                case VerticalFlightMode.DES:
+                    fmaController.VerticalActiveMode = "DES";
+                    break;
+
+                case VerticalFlightMode.EXPED:
+                    fmaController.VerticalActiveMode = "EXPED";
+                    break;
+                case VerticalFlightMode.VS:
+                    fmaController.VerticalActiveMode = "V/S " + targetVS.ToString("+0000;-0000;+0000"); ;
+                    break;
+                case VerticalFlightMode.GS:
+                    fmaController.VerticalActiveMode = "G/S";
+                    break;
+                case VerticalFlightMode.FPA:
+                    fmaController.VerticalActiveMode = "FPA " + targetFPA.ToString("+0.0;-0.0;+0.0") + "°";
+                    break;
+                default:
+                    fmaController.VerticalActiveMode = "";
+                    break;
+            }
+            //预位
+            fmaController.VerticalArmMode = GetVerticalArmedMode();
+
 
             // 3. 将横向模式映射为 FMA 文本
+            //激活
             switch (lateralMode) {
-                case LateralFlightMode.None: fmaController.LateralActiveMode = ""; break;
-                case LateralFlightMode.RWY: fmaController.LateralActiveMode = "RWY"; break;
-                case LateralFlightMode.RWY_TRK: fmaController.LateralActiveMode = "RWY TRK"; break;
-                case LateralFlightMode.HDG: fmaController.LateralActiveMode = isTrkFpaMode ? "TRACK" : "HDG"; break;
-                case LateralFlightMode.NAV: fmaController.LateralActiveMode = "NAV"; break;
-                case LateralFlightMode.LOC: fmaController.LateralActiveMode = "LOC"; break;
-                case LateralFlightMode.LAND: fmaController.LateralActiveMode = "LAND"; break;
-                default: fmaController.LateralActiveMode = ""; break;
+                case LateralFlightMode.None:
+                    fmaController.LateralActiveMode = "";
+                    break;
+                case LateralFlightMode.RWY_TRK:
+                    fmaController.LateralActiveMode = "RWY TRK";
+                    break;
+                case LateralFlightMode.HDG:
+                    fmaController.LateralActiveMode = isTrkFpaMode ? "TRK" : "HDG";
+                    break;
+
+                case LateralFlightMode.NAV:
+                    fmaController.LateralActiveMode = "NAV";
+                    break;
+
+                case LateralFlightMode.LOC:
+                    fmaController.LateralActiveMode = "LOC";
+                    break;
+
+                case LateralFlightMode.LAND:
+                    fmaController.LateralActiveMode = "LAND";
+                    break;
+
+                case LateralFlightMode.RWY:
+                    fmaController.LateralActiveMode = "RWY";
+                    break;
+
+                case LateralFlightMode.GA_TRK:
+                    fmaController.LateralActiveMode = "GA TRK";
+                    break;
+
+                default:
+                    fmaController.LateralActiveMode = "";
+                    break;
             }
 
-            // 横向预组 (Armed)
-            if (locStatus == ApprModeStatus.Armed && lateralMode != LateralFlightMode.LOC)
-                fmaController.LateralArmMode = "LOC";
-            else if (lateralGuidance == GuidanceMode.Managed && lateralMode != LateralFlightMode.NAV)
-                fmaController.LateralArmMode = "NAV";
-            else
-                fmaController.LateralArmMode = "";
+            // 预位
+            fmaController.LateralArmMode = GetLateralArmedMode();
+
+            //4.推力模式
+            if (_ATHRDFunc.Cruise || _ATHRDFunc.isAutoThrustArm) {
+                fmaController.IsAutoThrustActive = true;
+                fmaController.IsAutoThrustArm = _ATHRDFunc.isAutoThrustArm;
+
+                if (_ATHRDFunc.Cruise) {
+                    if(verticalMode == VerticalFlightMode.OP_CLB)
+                        fmaController.AutoThrustMode = "THR CLB";
+                    else if (verticalMode == VerticalFlightMode.OP_DES)
+                        fmaController.  AutoThrustMode = "THR IDLE";
+                    else
+                        fmaController.AutoThrustMode = "SPEED";
+                }
+                else {
+                    fmaController.AutoThrustMode = "";
+                }
+            }
+            else {
+                fmaController.IsAutoThrustActive = false;
+                fmaController.AutoThrustMode = "";
+            }
+
         }
+        
         private void Start() {
             _injector = DependenciesInjector.GetInstance(this);
-            _cruiseDFunc = _injector.autoThrust;
+            _ATHRDFunc = _injector.autoThrust;
             _altHoldDFunc = _injector.altHold;
             _adiru = _injector.adiru;
 
@@ -394,9 +525,9 @@ namespace A320VAU.FCU {
 
         private void LateUpdate() {
             if (!UpdateIntervalUtil.CanUpdate(ref _lastUpdate, UPDATE_INTERVAL)) return;
-            targetSpeed = Convert.ToInt32(_cruiseDFunc.SetSpeed * 1.9438445f);
-
+            targetSpeed = Convert.ToInt32(_ATHRDFunc.SetSpeed * 1.9438445f);
             _current_altitude = _adiru.adr.pressureAltitude;
+            isATHRActive = _ATHRDFunc.Cruise;
             CheckAltitudeCapture();
             isFD1Active = PFD_PF.isFlightDirectionOn;
             isFD2Active = PFD_PM.isFlightDirectionOn;
@@ -405,23 +536,117 @@ namespace A320VAU.FCU {
             SyncToFMA(fmaController1);
         }
 
+        public void ResetFCU() {
+            // 1. 重置速度/马赫窗口数值与模式
+            targetSpeed = 250f;
+            isMachMode = false;
+            speedGuidance = GuidanceMode.Managed;
+
+            // 2. 重置横向窗口 (HDG/TRK) 数值与模式
+            targetHeading = 360f;
+            isTrkFpaMode = false;
+            lateralGuidance = GuidanceMode.Managed;
+            lateralMode = LateralFlightMode.None;
+
+            // 3. 重置纵向窗口 (ALT/VS) 数值与模式
+            targetAltitude = 10000f;
+            targetVS = 0f;
+            targetFPA = 0f;
+            altitudeStep = 1000;
+            verticalGuidance = GuidanceMode.Managed;
+            verticalMode = VerticalFlightMode.None;
+
+            // 4. 断开所有自动飞行与进近系统 (AP / FD / ATHR / APPR)
+            isAP1Active = false;
+            isAP2Active = false;
+            isFD1Active = true;  // 上电默认开启 FD
+            isFD2Active = true;
+            isATHRActive = false;
+            locStatus = ApprModeStatus.Off;
+            apprStatus = ApprModeStatus.Off;
+            isExpedActive = false;
+
+            // 5. 立即刷新硬件与 FMA 显示面板
+            UpdateFCUDisplay();
+            SyncToFMA(fmaController1);
+            SyncToFMA(fmaController2);
+        }
+        private string GetVerticalArmedMode() {
+            // 优先级 1：盲降/进近预位（按下 APPR 且未截获 G/S）
+            if (apprStatus == ApprModeStatus.Armed && verticalMode != VerticalFlightMode.GS) {
+                return "G/S";
+            }
+
+            // 优先级 2：起飞/复飞 SRS 阶段（根据引导模式预位 CLB 或 巡航/爬升高度）
+            if (verticalMode == VerticalFlightMode.SRS) {
+                bool isClimb = targetAltitude >= _current_altitude && Mathf.Abs(_current_altitude - targetAltitude) > 100f;
+
+                if (verticalGuidance == GuidanceMode.Selected)
+                    return isClimb ? "OP CLB" : "OP DES"; // 修正下划线为标准 FMA 字符串格式
+                else
+                    return isClimb ? "CLB" : "DES";
+            }
+
+            // 优先级 3：常规爬升/下降/平飞阶段，若未处于 ALT/ALT* 或 G/S 阶段，自动预位 ALT
+            if (verticalMode != VerticalFlightMode.ALT_HOLD &&
+                verticalMode != VerticalFlightMode.ALT_STAR &&
+                verticalMode != VerticalFlightMode.GS) {
+                return "ALT";
+            }
+
+            // 默认无预位显示
+            return "";
+        }
+
+        private string GetLateralArmedMode() {
+            // 1. 航向道/盲降截获预位（按下 APPR/LOC 且尚未截获 LOC）
+            if (locStatus == ApprModeStatus.Armed && lateralMode != LateralFlightMode.LOC) {
+                return "LOC";
+            }
+
+            // 2. 导航预位：托管模式下，且当前未进入 LOC、LAND 或已经截获 NAV 的阶段
+            if (lateralGuidance == GuidanceMode.Managed &&
+                lateralMode != LateralFlightMode.NAV &&
+                lateralMode != LateralFlightMode.LOC &&
+                lateralMode != LateralFlightMode.LAND) {
+                return "NAV";
+            }
+
+            // 3. 默认无预位
+            return "";
+        }
+        
         private void CheckAltitudeCapture() {
-            // 已在平飞或非高度控制模式下跳过检测
-            if (verticalMode == VerticalFlightMode.ALT_HOLD ||
+            // 已在非高度控制模式下跳过检测
+            if (
                 verticalMode == VerticalFlightMode.GS ||
                 verticalMode == VerticalFlightMode.SRS) return;
 
+            if (verticalMode == VerticalFlightMode.OP_CLB) { 
+                _ATHRDFunc.OP_CLB = true;
+                _ATHRDFunc.OP_DES = false;
+            }
+            else if (verticalMode == VerticalFlightMode.OP_DES) {
+                _ATHRDFunc.OP_CLB = false;
+                _ATHRDFunc.OP_DES = true;
+            }
+            else {
+                _ATHRDFunc.OP_CLB = false;
+                _ATHRDFunc.OP_DES = false;
+
+            }
             float altDiff = Mathf.Abs(_current_altitude - targetAltitude);
+            
 
             // 当接近目标高度（例如 50 英尺以内）时自动平飞切入 ALT_HOLD
             // 1. 接近目标高度（如 250 英尺以内）：切入 ALT* (ALT Star) 捕获模式
-            if (altDiff <= 250f && altDiff > 20f) {
+            if (altDiff <= 250f && altDiff > 100f) {
                 if (verticalMode != VerticalFlightMode.ALT_STAR) {
                     verticalMode = VerticalFlightMode.ALT_STAR;
                 }
             }
             // 2. 高度完全稳定（20 英尺以内）：由 ALT* 转换为 ALT_HOLD 保持模式
-            else if (altDiff <= 20f && verticalMode == VerticalFlightMode.ALT_STAR) {
+            else if (altDiff <= 50f && verticalMode == VerticalFlightMode.ALT_STAR) {
                 verticalMode = VerticalFlightMode.ALT_HOLD;
                 targetVS = 0f;
                 targetFPA = 0f;
@@ -592,6 +817,8 @@ namespace A320VAU.FCU {
         LAND,        // 着陆模式
         RWY,
         RWY_TRK,
+        GA_TRK,
+        TRK,
         None        //无数据
     }
     public enum ApprModeStatus {

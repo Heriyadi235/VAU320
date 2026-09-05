@@ -79,21 +79,7 @@ namespace A320VAU.PFD {
                 IsAutoPilot1Active = false;
             }
             */
-            if (_cruiseDFunc.Cruise || _cruiseDFunc.isAutoThrustArm) {
-                IsAutoThrustActive = true;
-                IsAutoThrustArm = _cruiseDFunc.isAutoThrustArm;
-
-                if (_cruiseDFunc.Cruise) {
-                    AutoThrustMode = "SPEED";
-                }
-                else {
-                    AutoThrustMode = "";
-                }
-            }
-            else {
-                IsAutoThrustActive = false;
-                AutoThrustMode = "";
-            }
+            
 
             switch (_autoBrake.currentAutoBrakeMode) {
                 case A320VAU.AutoBrakeMode.Low:

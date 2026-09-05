@@ -9,6 +9,7 @@ using A320VAU.ADIRU;
 using System.Reflection;
 using UnityEditor;
 using A320VAU.Autopilot;
+using System;
 
 namespace A320VAU.Autopilot {
     [UdonBehaviourSyncMode(BehaviourSyncMode.NoVariableSync)]
@@ -88,7 +89,7 @@ namespace A320VAU.Autopilot {
             // ----------------------------------------------------
             float pitchError = -(targetPitch - currentPitch);
             _pitchIntegrator += pitchError * deltaTime;
-            _pitchIntegrator = Mathf.Clamp(_pitchIntegrator, -0.5f, 0.5f); // 积分防饱和
+            _pitchIntegrator = Mathf.Clamp(_pitchIntegrator, -5f, 5f); // 积分防饱和
 
             float pitchDerivator = (pitchError - _lastPitchError) / deltaTime;
             _lastPitchError = pitchError;
@@ -125,9 +126,14 @@ namespace A320VAU.Autopilot {
 
             // 综合保护限制
             float protectionFactor = Mathf.Min(gLimitFactor, aoaLimitFactor);
+            
+            //速度限制
+            protectionFactor *= Mathf.Lerp(0.8f, 0.2f, (adiru.adr.trueAirSpeed - 250) / (350-250));
             pitchCmd *= protectionFactor;
 
             // 7. 组装输入指令并注入 SAVControl
+            
+                
             _rotationInputs.x = Mathf.Clamp(pitchCmd, -1f, 1f);
             _rotationInputs.z = Mathf.Clamp(rollCmd, -1f, 1f);
             _rotationInputs.y = yawCmd;
