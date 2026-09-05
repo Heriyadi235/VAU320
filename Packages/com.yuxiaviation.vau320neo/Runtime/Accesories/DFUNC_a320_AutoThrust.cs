@@ -44,6 +44,9 @@ namespace A320VAU {
         [NonSerialized] public float SetSpeed = 100f;
 
         [NonSerialized] public bool Cruise;
+        [NonSerialized] public bool OP_CLB = false;
+        [NonSerialized] public bool OP_DES = false;
+
         private bool func_active;
         private bool Selected;
         private bool Piloting;
@@ -158,7 +161,7 @@ namespace A320VAU {
                 }
             }
             else {
-                if ((_aircraftSystemData.throttleLevelerSlot != ThrottleLevelerSlot.CLB ||
+                if ((_aircraftSystemData.throttleLevelerSlot != ThrottleLevelerSlot.CLB &&
                      _aircraftSystemData.throttleLevelerSlot != ThrottleLevelerSlot.Manuel) && Cruise) {
                     isAutoThrustArm = true;
 
@@ -246,10 +249,20 @@ namespace A320VAU {
                 
                 //CruiseIntegrator += error * DeltaTime;
                 //CruiseIntegrator = Mathf.Clamp(CruiseIntegrator, CruiseIntegratorMin, CruiseIntegratorMax);
+                var autoThrustInput = Mathf.Clamp((kp * error) + (kd * CruiseDerivative), 0, 1);
+
+                if (OP_CLB && !OP_DES) {
+
+                    autoThrustInput = 1;
+                }
+                if (!OP_CLB && OP_DES) {
+
+                    autoThrustInput = 0;
+                }
 
                 foreach (var engine in engines) {
-                    engine.autoThrustInput =
-                        Mathf.Clamp((kp * error) + (kd * CruiseDerivative), 0, 1);
+                    engine.autoThrustInput = autoThrustInput;
+
                 }
                 CruiseDerivativeLastFrame = error;
             }
