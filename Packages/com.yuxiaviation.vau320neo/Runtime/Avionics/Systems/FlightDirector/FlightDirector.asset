@@ -716,8 +716,8 @@ MonoBehaviour:
       Data: 1
     - Name: 
       Entry: 7
-      Data: 40|UnityEngine.TooltipAttribute, UnityEngine.CoreModule
-    - Name: tooltip
+      Data: 40|UnityEngine.HeaderAttribute, UnityEngine.CoreModule
+    - Name: header
       Entry: 1
       Data: "\u6EDA\u8F6C\u73AF"
     - Name: 

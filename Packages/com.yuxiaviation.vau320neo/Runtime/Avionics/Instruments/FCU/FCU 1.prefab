@@ -3714,7 +3714,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0.166}
+  m_AnchoredPosition: {x: 0, y: 0.213}
   m_SizeDelta: {x: 120, y: 60}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!223 &2675675451130589738
@@ -3858,10 +3858,13 @@ MonoBehaviour:
     Prefab: {fileID: 0}
     PrefabModificationsReferencedUnityObjects: []
     PrefabModifications: []
-    SerializationNodes: []
+    SerializationNodes:
+    - Name: localPlayer
+      Entry: 6
+      Data: 
   _udonSharpBackingUdonBehaviour: {fileID: 8400853624612391643}
   targetBehaviour: {fileID: 835394437956664082}
-  knobGroup: {fileID: 0}
+  knobGroup: {fileID: 2994197733978260862}
   optionNames:
   - PUSH/PULL
   - 10
@@ -3888,10 +3891,19 @@ MonoBehaviour:
   knobTransform: {fileID: 6164569273327205449}
   activeColor: {r: 0.9960785, g: 0.61960787, b: 0.20784315, a: 1}
   normalColor: {r: 0.2, g: 0.2, b: 0.2, a: 0.5}
-  activationDistance: 0.25
-  wristAngleThreshold: 4
-  pcScrollCooldown: 0.05
+  activationDistance: 0.05
+  wristAngleThreshold: 10
+  pcScrollCooldown: 0.03
+  isVR: 0
+  isHandInside: 0
+  updateTimer: 0
   updateInterval: 0.05
+  debugTouhSource: {fileID: 0}
+  distRightSqr: 0
+  distLeftSqr: 0
+  debugDistSqr: 0
+  thresholdSqr: 0
+  currentTriggerPressed: 0
 --- !u!114 &8400853624612391643
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4194,10 +4206,13 @@ MonoBehaviour:
     Prefab: {fileID: 0}
     PrefabModificationsReferencedUnityObjects: []
     PrefabModifications: []
-    SerializationNodes: []
+    SerializationNodes:
+    - Name: localPlayer
+      Entry: 6
+      Data: 
   _udonSharpBackingUdonBehaviour: {fileID: 4148878846750623560}
   targetBehaviour: {fileID: 835394437956664082}
-  knobGroup: {fileID: 0}
+  knobGroup: {fileID: 2994197733978260862}
   optionNames:
   - PUSH/PULL
   - 10
@@ -4218,16 +4233,25 @@ MonoBehaviour:
   onCounterClockwiseEventNames:
   - PullSpeedKnob
   - TurnSpeedKnobMinus10
-  - PushSpeedKnobMinus1
+  - TurnSpeedKnobMinus1
   floatingMenuCanvas: {fileID: 3686265147698703296}
   guideLine: {fileID: 3060919806918087099}
   knobTransform: {fileID: 6922823338456483861}
   activeColor: {r: 0.9960785, g: 0.61960787, b: 0.20784315, a: 1}
   normalColor: {r: 0.2, g: 0.2, b: 0.2, a: 0.5}
-  activationDistance: 0.25
-  wristAngleThreshold: 4
-  pcScrollCooldown: 0.05
+  activationDistance: 0.05
+  wristAngleThreshold: 10
+  pcScrollCooldown: 0.03
+  isVR: 0
+  isHandInside: 0
+  updateTimer: 0
   updateInterval: 0.05
+  debugTouhSource: {fileID: 0}
+  distRightSqr: 0
+  distLeftSqr: 0
+  debugDistSqr: 0
+  thresholdSqr: 0
+  currentTriggerPressed: 0
 --- !u!114 &4148878846750623560
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4462,7 +4486,8 @@ MonoBehaviour:
   isTrkFpaMode: 0
   lateralGuidance: 0
   lateralMode: 8
-  targetAltitude: 10000
+  preSelectAltitude: 3000
+  targetAltitude: 3000
   targetVS: 0
   targetFPA: 0
   altitudeStep: 1000
@@ -5079,7 +5104,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0.166}
+  m_AnchoredPosition: {x: 0, y: 0.213}
   m_SizeDelta: {x: 120, y: 60}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!223 &2226890001053827405
@@ -5528,7 +5553,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0.166}
+  m_AnchoredPosition: {x: 0, y: 0.213}
   m_SizeDelta: {x: 120, y: 60}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!223 &5463925274215486694
@@ -5962,10 +5987,13 @@ MonoBehaviour:
     Prefab: {fileID: 0}
     PrefabModificationsReferencedUnityObjects: []
     PrefabModifications: []
-    SerializationNodes: []
+    SerializationNodes:
+    - Name: localPlayer
+      Entry: 6
+      Data: 
   _udonSharpBackingUdonBehaviour: {fileID: 5715108301096110692}
   targetBehaviour: {fileID: 835394437956664082}
-  knobGroup: {fileID: 0}
+  knobGroup: {fileID: 2994197733978260862}
   optionNames:
   - PUSH/PULL
   - 1000
@@ -5992,10 +6020,19 @@ MonoBehaviour:
   knobTransform: {fileID: 691808901902316206}
   activeColor: {r: 0.9960785, g: 0.61960787, b: 0.20784315, a: 1}
   normalColor: {r: 0.2, g: 0.2, b: 0.2, a: 0.5}
-  activationDistance: 0.25
-  wristAngleThreshold: 4
-  pcScrollCooldown: 0.05
+  activationDistance: 0.05
+  wristAngleThreshold: 10
+  pcScrollCooldown: 0.03
+  isVR: 0
+  isHandInside: 0
+  updateTimer: 0
   updateInterval: 0.05
+  debugTouhSource: {fileID: 0}
+  distRightSqr: 0
+  distLeftSqr: 0
+  debugDistSqr: 0
+  thresholdSqr: 0
+  currentTriggerPressed: 0
 --- !u!114 &5715108301096110692
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6250,10 +6287,13 @@ MonoBehaviour:
     Prefab: {fileID: 0}
     PrefabModificationsReferencedUnityObjects: []
     PrefabModifications: []
-    SerializationNodes: []
+    SerializationNodes:
+    - Name: localPlayer
+      Entry: 6
+      Data: 
   _udonSharpBackingUdonBehaviour: {fileID: 335678775944241046}
   targetBehaviour: {fileID: 835394437956664082}
-  knobGroup: {fileID: 0}
+  knobGroup: {fileID: 2994197733978260862}
   optionNames:
   - PUSH/PULL
   - 10
@@ -6280,10 +6320,19 @@ MonoBehaviour:
   knobTransform: {fileID: 7629636509183070378}
   activeColor: {r: 0.9960785, g: 0.61960787, b: 0.20784315, a: 1}
   normalColor: {r: 0.2, g: 0.2, b: 0.2, a: 0.5}
-  activationDistance: 0.25
-  wristAngleThreshold: 4
-  pcScrollCooldown: 0.05
+  activationDistance: 0.05
+  wristAngleThreshold: 10
+  pcScrollCooldown: 0.03
+  isVR: 0
+  isHandInside: 0
+  updateTimer: 0
   updateInterval: 0.05
+  debugTouhSource: {fileID: 0}
+  distRightSqr: 0
+  distLeftSqr: 0
+  debugDistSqr: 0
+  thresholdSqr: 0
+  currentTriggerPressed: 0
 --- !u!114 &335678775944241046
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6614,7 +6663,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0.166}
+  m_AnchoredPosition: {x: 0, y: 0.213}
   m_SizeDelta: {x: 120, y: 60}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!223 &3481091732328992234

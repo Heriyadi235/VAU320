@@ -20,11 +20,12 @@ namespace A320VAU.Avionics {
         public float maxPitchDev = 15.0f;
         [Tooltip("FD 滚转杆达到最大偏转所需的偏差角度(度)")]
         public float maxRollDev = 30.0f;
-        
+
         [Header("--- Controllor ---")]
         [Header("俯仰环")]
         public float altHoldKp = 0.001f;
         public float altHoldKi = 0.001f;
+
         public float altStarKp = 0.05f; //0.1 0.025 0.05
 
         [SerializeField] private float altDiff;
@@ -34,7 +35,7 @@ namespace A320VAU.Avionics {
         public float opKp = 1f; //用于控制开放爬升下降的比例参数
         [SerializeField] private float speedDiff;
 
-        [Tooltip("滚转环")]
+        [Header("滚转环")]
         public float headingKp = 1.2f;
 
         [Header("工作状态")]
@@ -206,8 +207,17 @@ namespace A320VAU.Avionics {
                     //targetPitchDeg = -5f;
                     return targetPitchDeg;
 
+                case FCU.VerticalFlightMode.CLB:
+                    targetPitchDeg = 12.5f;
+                    return targetPitchDeg;
+
+                case FCU.VerticalFlightMode.DES:
+                    targetPitchDeg = -5f;
+                    return targetPitchDeg;
+                    
                 default:
-                    return currentPitch;
+                    //return currentPitch;
+                    return 0f;
             }
         }
 

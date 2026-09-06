@@ -44,7 +44,8 @@ namespace A320VAU.FCU {
         //public LateralFlightMode lateralMode = LateralFlightMode.NAV;
         public LateralFlightMode lateralMode = LateralFlightMode.None;
         [Header("--- VERTICAL WINDOW (ALT & VS) ---")]
-        public float targetAltitude = 10000f;       // 目标高度 (ft)
+        public float preSelectAltitude = 3000f;
+        public float targetAltitude = 3000f;       // 目标高度 (ft)
         public float targetVS = 0f;                 // 垂直速度 (ft/min)
         public float targetFPA = 0f;                // 飞行轨迹角 (度)
         public int altitudeStep = 1000;             // 高度增量 (100 或 1000)
@@ -132,7 +133,7 @@ namespace A320VAU.FCU {
         public void TurnSpeedKnobPlus10() => TurnSpeedKnob(10);
         public void TurnSpeedKnobPlus1() => TurnSpeedKnob(1);
         public void TurnSpeedKnobMinus10() => TurnSpeedKnob(-10);
-        public void PushSpeedKnobMinus1() => TurnSpeedKnob(-1);
+        public void TurnSpeedKnobMinus1() => TurnSpeedKnob(-1);
         public void ToggleSpdMach() {
             isMachMode = !isMachMode;
             // 单位转换逻辑示例
@@ -173,26 +174,45 @@ namespace A320VAU.FCU {
 
         #region Altitude & VS Knob Events
         public void TurnAltitudeKnob(float delta) {
-            targetAltitude = Mathf.Clamp(targetAltitude + delta * altitudeStep, 100f, 49000f);
-            if (verticalGuidance == GuidanceMode.Selected) {
-                isExpedActive = false;
-                verticalMode = (targetAltitude >= _current_altitude && Mathf.Abs(_current_altitude - targetAltitude)>100) ? VerticalFlightMode.OP_CLB : VerticalFlightMode.OP_DES;
+            preSelectAltitude = Mathf.Clamp(preSelectAltitude + delta * altitudeStep, 100f, 49000f);
+
+            if (verticalMode != VerticalFlightMode.ALT_HOLD && verticalMode != VerticalFlightMode.ALT_STAR) {
+                targetAltitude = preSelectAltitude;
+
+                if (verticalMode != VerticalFlightMode.VS) {
+                    if (verticalGuidance == GuidanceMode.Selected) {
+                        verticalMode = (targetAltitude >= _current_altitude) ? VerticalFlightMode.OP_CLB : VerticalFlightMode.OP_DES;
+                        isExpedActive = false;
+                    }
+                    else {
+                        verticalMode = (targetAltitude >= _current_altitude) ? VerticalFlightMode.CLB : VerticalFlightMode.DES;
+                    }
+                }
+
             }
         }
+        
         public void ToggleAltitudeStep() {
             altitudeStep = (altitudeStep == 1000) ? 100 : 1000;
         }
 
         public void PushAltitudeKnob() {
             verticalGuidance = GuidanceMode.Managed;
+            targetAltitude = preSelectAltitude;
             isExpedActive = false;
-            verticalMode = (targetAltitude >= _current_altitude && Mathf.Abs(_current_altitude - targetAltitude) > 100) ? VerticalFlightMode.CLB : VerticalFlightMode.DES;
+            if (Mathf.Abs(_current_altitude - targetAltitude) > 200) { 
+            verticalMode = (targetAltitude >= _current_altitude ) ? VerticalFlightMode.CLB : VerticalFlightMode.DES;
+            
+            }
         }
 
         public void PullAltitudeKnob() {
             verticalGuidance = GuidanceMode.Selected;
+            targetAltitude = preSelectAltitude;
             isExpedActive = false;
-            verticalMode = (targetAltitude >= _current_altitude && Mathf.Abs(_current_altitude - targetAltitude) > 100) ? VerticalFlightMode.OP_CLB : VerticalFlightMode.OP_DES;
+            if (Mathf.Abs(_current_altitude - targetAltitude) > 200) {
+                verticalMode = (targetAltitude >= _current_altitude) ? VerticalFlightMode.OP_CLB : VerticalFlightMode.OP_DES;
+            }
         }
 
         public void PushVSKnobToLevelOff() {
@@ -204,6 +224,7 @@ namespace A320VAU.FCU {
 
         public void PullVSKnob() {
             verticalGuidance = GuidanceMode.Selected;
+            targetAltitude = preSelectAltitude;
             verticalMode = isTrkFpaMode ? VerticalFlightMode.FPA : VerticalFlightMode.VS;
         }
 
@@ -341,12 +362,13 @@ namespace A320VAU.FCU {
             SetText(HeadingTextTMP, HeadingText, hdgStr);
 
             // 3. 高度窗口文本
-            string altStr = Mathf.RoundToInt(targetAltitude).ToString("D5");
+            string altStr = Mathf.RoundToInt(preSelectAltitude).ToString("D5");
             SetText(AltitudeTextTMP, AltitudeText, altStr);
 
             // 4. 垂直速度窗口文本
             string vsStr = "";
-            if (verticalGuidance == GuidanceMode.Managed && verticalMode != VerticalFlightMode.VS) {
+            //if (verticalGuidance == GuidanceMode.Managed && verticalMode != VerticalFlightMode.VS) {
+            if (verticalMode != VerticalFlightMode.VS) {
                 vsStr = "-----";
             }
             else {
@@ -549,7 +571,8 @@ namespace A320VAU.FCU {
             lateralMode = LateralFlightMode.None;
 
             // 3. 重置纵向窗口 (ALT/VS) 数值与模式
-            targetAltitude = 10000f;
+            preSelectAltitude = 3000f;
+            targetAltitude = 3000f;
             targetVS = 0f;
             targetFPA = 0f;
             altitudeStep = 1000;
@@ -619,7 +642,7 @@ namespace A320VAU.FCU {
         private void CheckAltitudeCapture() {
             // 已在非高度控制模式下跳过检测
             if (
-                verticalMode == VerticalFlightMode.GS ||
+                verticalMode == VerticalFlightMode.GS || verticalMode == VerticalFlightMode.ALT_HOLD ||
                 verticalMode == VerticalFlightMode.SRS) return;
 
             if (verticalMode == VerticalFlightMode.OP_CLB) { 
