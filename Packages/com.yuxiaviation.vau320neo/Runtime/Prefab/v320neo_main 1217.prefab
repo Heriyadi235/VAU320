@@ -184462,6 +184462,7 @@ MonoBehaviour:
   - {fileID: 5868115217746860467}
   - {fileID: 5339678824821627398}
   - {fileID: 159268732536603828}
+  - {fileID: 7840531968259032405}
   - {fileID: 1651102592329739379}
   Dial_Functions_L:
   - {fileID: 5648603156876810057}
@@ -195438,9 +195439,19 @@ PrefabInstance:
       objectReference: {fileID: 4664813781054834750}
     - target: {fileID: 835394437956664082, guid: 5ae2b67e97dae074a99a5c424aaa38c4,
         type: 3}
+      propertyPath: SAVControl
+      value: 
+      objectReference: {fileID: 3572449966251728710}
+    - target: {fileID: 835394437956664082, guid: 5ae2b67e97dae074a99a5c424aaa38c4,
+        type: 3}
       propertyPath: DFUNC_Cruise
       value: 
       objectReference: {fileID: 0}
+    - target: {fileID: 835394437956664082, guid: 5ae2b67e97dae074a99a5c424aaa38c4,
+        type: 3}
+      propertyPath: entityControl
+      value: 
+      objectReference: {fileID: 295065940386200780}
     - target: {fileID: 835394437956664082, guid: 5ae2b67e97dae074a99a5c424aaa38c4,
         type: 3}
       propertyPath: fmaController1

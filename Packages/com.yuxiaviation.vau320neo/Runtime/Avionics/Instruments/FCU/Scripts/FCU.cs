@@ -13,15 +13,20 @@ using UdonSharp;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
+using VRC.SDKBase;
+using VRC.Udon.Common.Interfaces;
 
 namespace A320VAU.FCU {
     [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]//FCU会同步，FD与AP不会同步，按键事件会被发送给owner
     public class FCU : UdonSharpBehaviour {
+        public SaccEntity entityControl;
+        public SaccAirVehicle SAVControl;
+
         public FMAController fmaController1;
         public FMAController fmaController2;
         public PFDBasicDisplay PFD_PF;
         public PFDBasicDisplay PFD_PM;
-        private DFUNC_AltHold _altHoldDFunc;
+
         private DFUNC_a320_AutoThrust _ATHRDFunc;
         private DependenciesInjector _injector;
         private ADIRU.ADIRU _adiru;
@@ -33,40 +38,43 @@ namespace A320VAU.FCU {
         [SerializeField] private float _current_altitude = 0f;
 
         [Header("--- SPEED / MACH WINDOW ---")]
-        public float targetSpeed = 250f;            // 节(Knots) 或 Mach
-        public bool isMachMode = false;             // 是否为Mach显示
-        public GuidanceMode speedGuidance = GuidanceMode.Managed;
+        [UdonSynced] public float targetSpeed = 250f;            // 节(Knots) 或 Mach
+        [UdonSynced] public bool isMachMode = false;             // 是否为Mach显示
+        [UdonSynced] public GuidanceMode speedGuidance = GuidanceMode.Managed;
 
         [Header("--- LATERAL WINDOW (HDG/TRK) ---")]
-        public float targetHeading = 360f;          // 航向 (0-360)
-        public bool isTrkFpaMode = false;           // 是否处于 TRK/FPA 模式
-        public GuidanceMode lateralGuidance = GuidanceMode.Managed;
-        //public LateralFlightMode lateralMode = LateralFlightMode.NAV;
-        public LateralFlightMode lateralMode = LateralFlightMode.None;
+        [UdonSynced] public float targetHeading = 360f;          // 航向 (0-360)
+        [UdonSynced] public bool isTrkFpaMode = false;           // 是否处于 TRK/FPA 模式
+        [UdonSynced] public GuidanceMode lateralGuidance = GuidanceMode.Managed;
+        [UdonSynced] public LateralFlightMode lateralMode = LateralFlightMode.None;
+
         [Header("--- VERTICAL WINDOW (ALT & VS) ---")]
-        public float preSelectAltitude = 3000f;
-        public float targetAltitude = 3000f;       // 目标高度 (ft)
-        public float targetVS = 0f;                 // 垂直速度 (ft/min)
-        public float targetFPA = 0f;                // 飞行轨迹角 (度)
-        public int altitudeStep = 1000;             // 高度增量 (100 或 1000)
-        public GuidanceMode verticalGuidance = GuidanceMode.Managed;
+        [UdonSynced] public float preSelectAltitude = 3000f;
+        [UdonSynced] public float targetAltitude = 3000f;       // 目标高度 (ft)
+        [UdonSynced] public float targetVS = 0f;                 // 垂直速度 (ft/min)
+        [UdonSynced] public float targetFPA = 0f;                // 飞行轨迹角 (度)
+        [UdonSynced] public int altitudeStep = 1000;             // 高度增量 (100 或 1000)
+        [UdonSynced] public GuidanceMode verticalGuidance = GuidanceMode.Managed;
         //public VerticalFlightMode verticalMode = VerticalFlightMode.ALT_HOLD;
-        public VerticalFlightMode verticalMode = VerticalFlightMode.None;
+        [UdonSynced] public VerticalFlightMode verticalMode = VerticalFlightMode.None;
 
         [Header("--- AP & ATHR & APPR STATUS ---")]
-        public bool isAP1Active = false;
-        public bool isAP2Active = false;
-        public bool isFD1Active = true;
-        public bool isFD2Active = true;
-        public bool isATHRActive = false;
-        public ApprModeStatus locStatus = ApprModeStatus.Off;
-        public ApprModeStatus apprStatus = ApprModeStatus.Off;
-        public bool isExpedActive = false;
+        [UdonSynced] public bool isAP1Active = false;
+        [UdonSynced] public bool isAP2Active = false;
+        [UdonSynced] public bool isFD1Active = true;
+        [UdonSynced] public bool isFD2Active = true;
+        [UdonSynced] public bool isATHRActive = false;
 
+        [UdonSynced] public ApprModeStatus locStatus = ApprModeStatus.Off;
+        [UdonSynced] public ApprModeStatus apprStatus = ApprModeStatus.Off;
+        [UdonSynced] public bool isExpedActive = false;
+
+        
         #region UI Elements
         private readonly int AP1_HASH = Animator.StringToHash("IsAP1On");
         private readonly int AP2_HASH = Animator.StringToHash("IsAP2On");
         private readonly int ATHR_HASH = Animator.StringToHash("IsAutoThrustOn");
+        
         [Header("--- UI TEXT COMPONENTS (Safe Null Handled) ---")]
         public Animator cockpitAnimator;
         // 兼容 Legacy Text
@@ -111,29 +119,40 @@ namespace A320VAU.FCU {
 
         #endregion
 
+        #region Network
+        private VRCPlayerApi localPlayer;
+        #endregion
         // ----------------------------------------------------
         // FCU 按钮与旋钮事件接口 (供VR手柄/Inspector按钮调用)
         // ----------------------------------------------------
 
         #region Speed Knob Events
         public void TurnSpeedKnob(float delta) {
-            if (isMachMode)
-                targetSpeed = Mathf.Clamp(targetSpeed + delta * 0.01f, 0.10f, 0.99f);
-            else
-                targetSpeed = Mathf.Clamp(targetSpeed + delta, 100f, 390f);
-            
-            _ATHRDFunc.SetSpeed = Convert.ToInt32(targetSpeed / 1.9438445f);
+                if (isMachMode)
+                    targetSpeed = Mathf.Clamp(targetSpeed + delta * 0.01f, 0.10f, 0.99f);
+                else
+                    targetSpeed = Mathf.Clamp(targetSpeed + delta, 100f, 390f);
+
+                _ATHRDFunc.SetSpeed = Convert.ToInt32(targetSpeed / 1.9438445f);
+                if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
-        public void PushSpeedKnob() {
-            speedGuidance = GuidanceMode.Managed;
+        public void PushSpeedKnob_Owner() {
+            if(localPlayer.IsOwner(gameObject)) {
+                speedGuidance = GuidanceMode.Managed;
+                RequestSerialization();
+            } 
         }
-        public void PullSpeedKnob() {
-            speedGuidance = GuidanceMode.Selected;
+        public void PullSpeedKnob_Owner() {
+            if (localPlayer.IsOwner(gameObject)) {
+                speedGuidance = GuidanceMode.Selected;
+                RequestSerialization();
+            }
         }
-        public void TurnSpeedKnobPlus10() => TurnSpeedKnob(10);
-        public void TurnSpeedKnobPlus1() => TurnSpeedKnob(1);
-        public void TurnSpeedKnobMinus10() => TurnSpeedKnob(-10);
-        public void TurnSpeedKnobMinus1() => TurnSpeedKnob(-1);
+
+        public void TurnSpeedKnobPlus10_Owner()=> TurnSpeedKnob(10);
+        public void TurnSpeedKnobPlus1_Owner() => TurnSpeedKnob(1);
+        public void TurnSpeedKnobMinus10_Owner() => TurnSpeedKnob(-10);
+        public void TurnSpeedKnobMinus1_Owner() => TurnSpeedKnob(-1);
         public void ToggleSpdMach() {
             isMachMode = !isMachMode;
             // 单位转换逻辑示例
@@ -141,32 +160,48 @@ namespace A320VAU.FCU {
             else targetSpeed = 290f;
         }
         #endregion
-
+        public void TurnSpeedKnobPlus10() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "TurnSpeedKnobPlus10_Owner");
+        public void TurnSpeedKnobPlus1() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "TurnSpeedKnobPlus1_Owner");
+        public void TurnSpeedKnobMinus10() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "TurnSpeedKnobMinus10_Owner");
+        public void TurnSpeedKnobMinus1() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "TurnSpeedKnobMinus1_Owner");
+        public void PushSpeedKnob() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "PushSpeedKnob_Owner");
+        public void PullSpeedKnob() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "PullSpeedKnob_Owner");
+        
         #region Heading Knob Events
         public void TurnHeadingKnob(float delta) {
             targetHeading = (targetHeading + delta) % 360f;
             if (targetHeading < 0) targetHeading += 360f;
+            if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
 
-        public void PushHeadingKnob() {
+        public void PushHeadingKnob_Owner() {
             lateralGuidance = GuidanceMode.Managed;
             lateralMode = LateralFlightMode.NAV;
             if (apprStatus == ApprModeStatus.Engaged) apprStatus = ApprModeStatus.Off;
             if (locStatus == ApprModeStatus.Engaged) locStatus = ApprModeStatus.Off;
+            if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
 
-        public void TurnHeadingKnobPlus10() => TurnHeadingKnob(10);
-        public void TurnHeadingKnobPlus1() => TurnHeadingKnob(1);
-        public void TurnHeadingKnobMinus10() => TurnHeadingKnob(-10);
-        public void PushHeadingKnobMinus1() => TurnHeadingKnob(-1);
-
-        public void PullHeadingKnob() {
+        public void PullHeadingKnob_Owner() {
             lateralGuidance = GuidanceMode.Selected;
             lateralMode = LateralFlightMode.HDG;
+            targetHeading = _adiru.irs.heading;
             if (apprStatus == ApprModeStatus.Engaged) apprStatus = ApprModeStatus.Off;
             if (locStatus == ApprModeStatus.Engaged) locStatus = ApprModeStatus.Off;
+            if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
 
+        public void TurnHeadingKnobPlus10_Owner() => TurnHeadingKnob(10);
+        public void TurnHeadingKnobPlus1_Owner() => TurnHeadingKnob(1);
+        public void TurnHeadingKnobMinus10_Owner() => TurnHeadingKnob(-10);
+        public void PushHeadingKnobMinus1_Owner() => TurnHeadingKnob(-1);
+
+        public void TurnHeadingKnobPlus10() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "TurnHeadingKnobPlus10_Owner");
+        public void TurnHeadingKnobPlus1() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "TurnHeadingKnobPlus1_Owner");
+        public void TurnHeadingKnobMinus10() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "TurnHeadingKnobMinus10_Owner");
+        public void PushHeadingKnobMinus1() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "PushHeadingKnobMinus1_Owner");
+        public void PushHeadingKnob() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "PushHeadingKnob_Owner");
+        public void PullHeadingKnob() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "PullHeadingKnob_Owner");
         public void ToggleHdgTrkMode() {
             isTrkFpaMode = !isTrkFpaMode;
         }
@@ -190,13 +225,14 @@ namespace A320VAU.FCU {
                 }
 
             }
+            if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
         
         public void ToggleAltitudeStep() {
             altitudeStep = (altitudeStep == 1000) ? 100 : 1000;
         }
 
-        public void PushAltitudeKnob() {
+        public void PushAltitudeKnob_Owner() {
             verticalGuidance = GuidanceMode.Managed;
             targetAltitude = preSelectAltitude;
             isExpedActive = false;
@@ -204,28 +240,33 @@ namespace A320VAU.FCU {
             verticalMode = (targetAltitude >= _current_altitude ) ? VerticalFlightMode.CLB : VerticalFlightMode.DES;
             
             }
+            if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
 
-        public void PullAltitudeKnob() {
+        public void PullAltitudeKnob_Owner() {
             verticalGuidance = GuidanceMode.Selected;
             targetAltitude = preSelectAltitude;
             isExpedActive = false;
             if (Mathf.Abs(_current_altitude - targetAltitude) > 200) {
                 verticalMode = (targetAltitude >= _current_altitude) ? VerticalFlightMode.OP_CLB : VerticalFlightMode.OP_DES;
             }
+            if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
 
-        public void PushVSKnobToLevelOff() {
+        public void PushVSKnobToLevelOff_Owner() {
             verticalGuidance = GuidanceMode.Selected;
             verticalMode = VerticalFlightMode.VS;
             targetVS = 0f;
             targetFPA = 0f;
+            if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
 
-        public void PullVSKnob() {
+        public void PullVSKnob_Owner() {
             verticalGuidance = GuidanceMode.Selected;
             targetAltitude = preSelectAltitude;
             verticalMode = isTrkFpaMode ? VerticalFlightMode.FPA : VerticalFlightMode.VS;
+            targetVS = Mathf.Clamp(_adiru.adr.verticalSpeed - (_adiru.adr.verticalSpeed % 1000), -6000f, 6000f);
+            if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
 
         public void TurnVSKnob(float delta) {
@@ -233,32 +274,36 @@ namespace A320VAU.FCU {
                 targetFPA = Mathf.Clamp(targetFPA + delta * 0.1f, -9.9f, 9.9f);
             else
                 targetVS = Mathf.Clamp(targetVS + delta * 100f, -6000f, 6000f);
+            if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
 
-        public void TurnAltitudeKnobPlus1k() {
-            TurnAltitudeKnob(1);
-        }
+        public void TurnAltitudeKnobPlus1k_Owner() => TurnAltitudeKnob(1);
+        public void TurnAltitudeKnobMinus1k_Owner() => TurnAltitudeKnob(-1);
+        public void TurnAltitudeKnobPlus1h_Owner() => TurnAltitudeKnob(0.1f);
+        public void TurnAltitudeKnobMinus1h_Owner() => TurnAltitudeKnob(-0.1f);
 
-        public void TurnAltitudeKnobMinus1k() {
-            TurnAltitudeKnob(-1);
-        }
-        public void TurnAltitudeKnobPlus1h() {
-            TurnAltitudeKnob(0.1f);
-        }
+        public void TurnAltitudeKnobPlus1k() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "TurnAltitudeKnobPlus1k_Owner");
+        public void TurnAltitudeKnobMinus1k() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "TurnAltitudeKnobMinus1k_Owner");
+        public void TurnAltitudeKnobPlus1h() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "TurnAltitudeKnobPlus1h_Owner");
+        public void TurnAltitudeKnobMinus1h() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "TurnAltitudeKnobMinus1h_Owner");
+        public void PushAltitudeKnob() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "PushAltitudeKnob_Owner");
+        public void PullAltitudeKnob() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "PullAltitudeKnob_Owner");
 
-        public void TurnAltitudeKnobMinus1h() {
-            TurnAltitudeKnob(-0.1f);
-        }
-
-        public void TurnVSKnoblus5h() => TurnVSKnob(5);
-        public void TurnVSKnobPlus1h() => TurnVSKnob(1);
-        public void TurnVSKnobMinus5h() => TurnVSKnob(-5);
-        public void TurnVSKnobbMinus1h() => TurnVSKnob(-1);
+        public void TurnVSKnoblus5h_Owner() => TurnVSKnob(5);
+        public void TurnVSKnobPlus1h_Owner() => TurnVSKnob(1);
+        public void TurnVSKnobMinus5h_Owner() => TurnVSKnob(-5);
+        public void TurnVSKnobbMinus1h_Owner() => TurnVSKnob(-1);
 
         #endregion
+        public void TurnVSKnoblus5h() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "TurnVSKnoblus5h_Owner");
+        public void TurnVSKnobPlus1h() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "TurnVSKnobPlus1h_Owner");
+        public void TurnVSKnobMinus5h() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "TurnVSKnobMinus5h_Owner");
+        public void TurnVSKnobbMinus1h() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "TurnVSKnobbMinus1h_Owner");
+        public void PushVSKnobToLevelOff() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "PushVSKnobToLevelOff_Owner");
+        public void PullVSKnob() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "PullVSKnob_Owner");
 
         #region FCU Buttons (AP, ATHR, APPR, LOC, EXPED)
-        public void PressAP1() {
+        public void PressAP1_Owner() {
             // 1. 地面保护 / 姿态保护：地面禁止接通 AP（离地后才允许）
             if (_aircraftSystemData.isAircraftGrounded) {
                 isAP1Active = false;
@@ -283,9 +328,10 @@ namespace A320VAU.FCU {
 
             // 接通 AP1
             isAP1Active = true;
+            if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
 
-        public void PressAP2() {
+        public void PressAP2_Owner() {
             // 1. 地面保护 / 姿态保护：地面禁止接通 AP（离地后才允许）
             if (_aircraftSystemData.isAircraftGrounded) {
                 isAP2Active = false;
@@ -310,14 +356,16 @@ namespace A320VAU.FCU {
 
             // 接通 AP1
             isAP2Active = true;
+            if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
 
-        public void PressATHR() {
+        public void PressATHR_Owner() {
             
             isATHRActive = !isATHRActive;
+            if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
 
-        public void PressLOC() {
+        public void PressLOC_Owner() {
             if (locStatus == ApprModeStatus.Off) {
                 locStatus = ApprModeStatus.Armed;
             }
@@ -325,9 +373,10 @@ namespace A320VAU.FCU {
                 locStatus = ApprModeStatus.Off;
                 if (lateralMode == LateralFlightMode.LOC) lateralMode = LateralFlightMode.HDG;
             }
+            if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
 
-        public void PressAPPR() {
+        public void PressAPPR_Owner() {
             if (apprStatus == ApprModeStatus.Off) {
                 apprStatus = ApprModeStatus.Armed;
                 locStatus = ApprModeStatus.Armed; // APPR 自动包含 LOC 预置
@@ -338,18 +387,25 @@ namespace A320VAU.FCU {
                 if (verticalMode == VerticalFlightMode.GS) verticalMode = VerticalFlightMode.ALT_HOLD;
                 if (lateralMode == LateralFlightMode.LOC) lateralMode = LateralFlightMode.HDG;
             }
+            if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
 
-        public void PressEXPED() {
+        public void PressEXPED_Owner() {
             isExpedActive = !isExpedActive;
             if (isExpedActive) {
                 verticalGuidance = GuidanceMode.Selected;
                 verticalMode = VerticalFlightMode.EXPED;
             }
+            if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
 
         #endregion
-
+        public void PressAP1() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "PressAP1_Owner");
+        public void PressAP2() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "PressAP2_Owner");
+        public void PressATHR() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "PressATHR_Owner");
+        public void PressLOC() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "PressLOC_Owner");
+        public void PressAPPR() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "PressAPPR_Owner");
+        public void PressEXPED() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "PressEXPED_Owner");
 
         public void UpdateFCUDisplay() {
             // 1. 速度窗口文本
@@ -540,8 +596,8 @@ namespace A320VAU.FCU {
         private void Start() {
             _injector = DependenciesInjector.GetInstance(this);
             _ATHRDFunc = _injector.autoThrust;
-            _altHoldDFunc = _injector.altHold;
             _adiru = _injector.adiru;
+            localPlayer = Networking.LocalPlayer;
 
         }
 
@@ -678,6 +734,19 @@ namespace A320VAU.FCU {
 
         }
 
+        #region SACCEVENT
+
+        public void SFEXT_G_Explode() => ResetFCU();
+        public void SFEXT_G_RespawnButton() => ResetFCU();
+
+        public override void OnDeserialization() {
+            base.OnDeserialization();
+            _ATHRDFunc.SetSpeed = Convert.ToInt32(targetSpeed / 1.9438445f);
+            UpdateFCUDisplay();
+            SyncToFMA(fmaController1);
+            SyncToFMA(fmaController2);
+        }
+        #endregion
         /*
             #region Property
                 [FieldChangeCallback(nameof(FCUMode))] public FCUMode _fcuMode = FCUMode.HeadingVerticalSpeed;
@@ -808,7 +877,6 @@ namespace A320VAU.FCU {
         HeadingVerticalSpeed,
         TrackFPA
     }
-
     public enum GuidanceMode {
         Managed,    // 管理模式 (推 - 由FMGC计算)
         Selected    // 选择模式 (拉 - 由FCU面板数值决定)
@@ -881,8 +949,8 @@ public class A320_FCUEditor : Editor {
         // --- SPEED SECTION ---
         EditorGUILayout.LabelField("1. Speed / Mach Controls", EditorStyles.boldLabel);
         EditorGUILayout.BeginHorizontal();
-        if (GUILayout.Button("PUSH (Managed)")) fcu.PushSpeedKnob();
-        if (GUILayout.Button("PULL (Selected)")) fcu.PullSpeedKnob();
+        if (GUILayout.Button("PUSH (Managed)")) fcu.PushSpeedKnob_Owner();
+        if (GUILayout.Button("PULL (Selected)")) fcu.PullSpeedKnob_Owner();
         if (GUILayout.Button("SPD -10")) fcu.TurnSpeedKnob(-10f);
         if (GUILayout.Button("SPD +10")) fcu.TurnSpeedKnob(10f);
         if (GUILayout.Button("SPD/MACH")) fcu.ToggleSpdMach();
@@ -893,8 +961,8 @@ public class A320_FCUEditor : Editor {
         // --- LATERAL SECTION ---
         EditorGUILayout.LabelField("2. Lateral (HDG/NAV) Controls", EditorStyles.boldLabel);
         EditorGUILayout.BeginHorizontal();
-        if (GUILayout.Button("PUSH (NAV)")) fcu.PushHeadingKnob();
-        if (GUILayout.Button("PULL (HDG)")) fcu.PullHeadingKnob();
+        if (GUILayout.Button("PUSH (NAV)")) fcu.PushHeadingKnob_Owner();
+        if (GUILayout.Button("PULL (HDG)")) fcu.PullHeadingKnob_Owner();
         if (GUILayout.Button("HDG -10")) fcu.TurnHeadingKnob(-10f);
         if (GUILayout.Button("HDG +10")) fcu.TurnHeadingKnob(10f);
         if (GUILayout.Button("HDG/TRK")) fcu.ToggleHdgTrkMode();
@@ -905,16 +973,16 @@ public class A320_FCUEditor : Editor {
         // --- ALTITUDE / VS SECTION ---
         EditorGUILayout.LabelField("3. Altitude & VS Controls", EditorStyles.boldLabel);
         EditorGUILayout.BeginHorizontal();
-        if (GUILayout.Button("PUSH ALT")) fcu.PushAltitudeKnob();
-        if (GUILayout.Button("PULL ALT")) fcu.PullAltitudeKnob();
+        if (GUILayout.Button("PUSH ALT")) fcu.PushAltitudeKnob_Owner();
+        if (GUILayout.Button("PULL ALT")) fcu.PullAltitudeKnob_Owner();
         if (GUILayout.Button("ALT -1000")) fcu.TurnAltitudeKnob(-1f);
         if (GUILayout.Button("ALT +1000")) fcu.TurnAltitudeKnob(1f);
         if (GUILayout.Button("STEP 100/1000")) fcu.ToggleAltitudeStep();
         EditorGUILayout.EndHorizontal();
 
         EditorGUILayout.BeginHorizontal();
-        if (GUILayout.Button("PUSH VS (Level Off)")) fcu.PushVSKnobToLevelOff();
-        if (GUILayout.Button("PULL VS")) fcu.PullVSKnob();
+        if (GUILayout.Button("PUSH VS (Level Off)")) fcu.PushVSKnobToLevelOff_Owner();
+        if (GUILayout.Button("PULL VS")) fcu.PullVSKnob_Owner();
         if (GUILayout.Button("VS -500")) fcu.TurnVSKnob(-5f);
         if (GUILayout.Button("VS +500")) fcu.TurnVSKnob(5f);
         EditorGUILayout.EndHorizontal();
