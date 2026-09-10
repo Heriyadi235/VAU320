@@ -63,14 +63,19 @@ namespace A320VAU.Interaction {
         }
 
         /// <summary>
-        /// 请求打开指定旋钮的菜单（排他性控制，自动关闭上一个）
+        /// 请求打开指定旋钮的菜单（排他性控制，如果有按钮已经打开，忽略请求）
+        /// VR下忽略新的打开请求，PC下关闭当前菜单
         /// </summary>
         public void RequestOpenMenu(GenericKnob knob) {
             if (knob == null) return;
 
-            // 如果当前已有其他旋钮打开，强制将其关闭
+            // 如果当前已有其他旋钮打开，忽略请求
             if (currentlyOpenKnob != null && currentlyOpenKnob != knob) {
+                if (currentlyOpenKnob.isVR)
+                    return;
+                else
                 currentlyOpenKnob.CloseMenu();
+
             }
 
             currentlyOpenKnob = knob;

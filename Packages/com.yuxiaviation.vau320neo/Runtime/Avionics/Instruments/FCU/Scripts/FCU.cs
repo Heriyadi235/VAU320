@@ -121,6 +121,7 @@ namespace A320VAU.FCU {
 
         #region Network
         private VRCPlayerApi localPlayer;
+        private float altDiff;
         #endregion
         // ----------------------------------------------------
         // FCU 按钮与旋钮事件接口 (供VR手柄/Inspector按钮调用)
@@ -132,8 +133,7 @@ namespace A320VAU.FCU {
                     targetSpeed = Mathf.Clamp(targetSpeed + delta * 0.01f, 0.10f, 0.99f);
                 else
                     targetSpeed = Mathf.Clamp(targetSpeed + delta, 100f, 390f);
-
-                _ATHRDFunc.SetSpeed = Convert.ToInt32(targetSpeed / 1.9438445f);
+                _ATHRDFunc.SetSpeed = Convert.ToInt32(targetSpeed);
                 if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
         public void PushSpeedKnob_Owner() {
@@ -238,8 +238,8 @@ namespace A320VAU.FCU {
             isExpedActive = false;
             if (Mathf.Abs(_current_altitude - targetAltitude) > 200) { 
             verticalMode = (targetAltitude >= _current_altitude ) ? VerticalFlightMode.CLB : VerticalFlightMode.DES;
-            
             }
+            targetVS = 0;
             if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
 
@@ -250,6 +250,22 @@ namespace A320VAU.FCU {
             if (Mathf.Abs(_current_altitude - targetAltitude) > 200) {
                 verticalMode = (targetAltitude >= _current_altitude) ? VerticalFlightMode.OP_CLB : VerticalFlightMode.OP_DES;
             }
+            targetVS = 0;
+            // 调整油门
+            if (verticalMode == VerticalFlightMode.OP_CLB) {
+                _ATHRDFunc.OP_CLB = true;
+                _ATHRDFunc.OP_DES = false;
+            }
+            else if (verticalMode == VerticalFlightMode.OP_DES) {
+                _ATHRDFunc.OP_CLB = false;
+                _ATHRDFunc.OP_DES = true;
+            }
+            else {
+                _ATHRDFunc.OP_CLB = false;
+                _ATHRDFunc.OP_DES = false;
+
+            }
+
             if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
 
@@ -258,6 +274,8 @@ namespace A320VAU.FCU {
             verticalMode = VerticalFlightMode.VS;
             targetVS = 0f;
             targetFPA = 0f;
+            _ATHRDFunc.OP_DES = false;
+            _ATHRDFunc.OP_CLB = false;
             if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
 
@@ -265,7 +283,8 @@ namespace A320VAU.FCU {
             verticalGuidance = GuidanceMode.Selected;
             targetAltitude = preSelectAltitude;
             verticalMode = isTrkFpaMode ? VerticalFlightMode.FPA : VerticalFlightMode.VS;
-            targetVS = Mathf.Clamp(_adiru.adr.verticalSpeed - (_adiru.adr.verticalSpeed % 1000), -6000f, 6000f);
+            //如果现在没有targetVS，拔出后目标VS设置为当前VS
+            if (targetVS == 0f) { targetVS = Mathf.Clamp(_adiru.adr.verticalSpeed - (_adiru.adr.verticalSpeed % 1000), -6000f, 6000f); }
             if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
 
@@ -424,7 +443,7 @@ namespace A320VAU.FCU {
             // 4. 垂直速度窗口文本
             string vsStr = "";
             //if (verticalGuidance == GuidanceMode.Managed && verticalMode != VerticalFlightMode.VS) {
-            if (verticalMode != VerticalFlightMode.VS) {
+            if (verticalMode != VerticalFlightMode.VS && targetVS == 0) {
                 vsStr = "-----";
             }
             else {
@@ -575,9 +594,9 @@ namespace A320VAU.FCU {
                 fmaController.IsAutoThrustArm = _ATHRDFunc.isAutoThrustArm;
 
                 if (_ATHRDFunc.Cruise) {
-                    if(verticalMode == VerticalFlightMode.OP_CLB)
+                    if(_ATHRDFunc.OP_CLB)
                         fmaController.AutoThrustMode = "THR CLB";
-                    else if (verticalMode == VerticalFlightMode.OP_DES)
+                    else if (_ATHRDFunc.OP_DES)
                         fmaController.  AutoThrustMode = "THR IDLE";
                     else
                         fmaController.AutoThrustMode = "SPEED";
@@ -603,7 +622,7 @@ namespace A320VAU.FCU {
 
         private void LateUpdate() {
             if (!UpdateIntervalUtil.CanUpdate(ref _lastUpdate, UPDATE_INTERVAL)) return;
-            targetSpeed = Convert.ToInt32(_ATHRDFunc.SetSpeed * 1.9438445f);
+            targetSpeed = Convert.ToInt32(_ATHRDFunc.SetSpeed);
             _current_altitude = _adiru.adr.pressureAltitude;
             isATHRActive = _ATHRDFunc.Cruise;
             CheckAltitudeCapture();
@@ -669,12 +688,18 @@ namespace A320VAU.FCU {
             // 优先级 3：常规爬升/下降/平飞阶段，若未处于 ALT/ALT* 或 G/S 阶段，自动预位 ALT
             if (verticalMode != VerticalFlightMode.ALT_HOLD &&
                 verticalMode != VerticalFlightMode.ALT_STAR &&
-                verticalMode != VerticalFlightMode.GS) {
+                verticalMode != VerticalFlightMode.GS && 
+                verticalMode != VerticalFlightMode.VS) {
                 return "ALT";
             }
 
-            // 默认无预位显示
-            return "";
+            //单独处理VS预位的逻辑
+            if (verticalMode == VerticalFlightMode.VS) {
+                //如果上升或下降的方向一致才会预位置alt
+                if (Mathf.Sign(altDiff) != Mathf.Sign(targetVS)) return "ALT";
+            }
+                // 默认无预位显示
+               return "";
         }
 
         private string GetLateralArmedMode() {
@@ -700,33 +725,28 @@ namespace A320VAU.FCU {
             if (
                 verticalMode == VerticalFlightMode.GS || verticalMode == VerticalFlightMode.ALT_HOLD ||
                 verticalMode == VerticalFlightMode.SRS) return;
-
-            if (verticalMode == VerticalFlightMode.OP_CLB) { 
-                _ATHRDFunc.OP_CLB = true;
-                _ATHRDFunc.OP_DES = false;
-            }
-            else if (verticalMode == VerticalFlightMode.OP_DES) {
-                _ATHRDFunc.OP_CLB = false;
-                _ATHRDFunc.OP_DES = true;
-            }
-            else {
-                _ATHRDFunc.OP_CLB = false;
-                _ATHRDFunc.OP_DES = false;
-
-            }
-            float altDiff = Mathf.Abs(_current_altitude - targetAltitude);
             
+            if (verticalMode == VerticalFlightMode.VS) {
+                //todo:避免没有调高度拔出VS时，飞机会锁定当前高度
 
+            }
+
+            altDiff = _current_altitude - targetAltitude;
+            
             // 当接近目标高度（例如 50 英尺以内）时自动平飞切入 ALT_HOLD
             // 1. 接近目标高度（如 250 英尺以内）：切入 ALT* (ALT Star) 捕获模式
-            if (altDiff <= 250f && altDiff > 100f) {
+            if (Mathf.Abs(altDiff) <= 250f && Mathf.Abs(altDiff) > 100f) {
                 if (verticalMode != VerticalFlightMode.ALT_STAR) {
                     verticalMode = VerticalFlightMode.ALT_STAR;
+                    _ATHRDFunc.OP_CLB = false;
+                    _ATHRDFunc.OP_DES = false;
                 }
             }
             // 2. 高度完全稳定（20 英尺以内）：由 ALT* 转换为 ALT_HOLD 保持模式
-            else if (altDiff <= 50f && verticalMode == VerticalFlightMode.ALT_STAR) {
+            else if (Mathf.Abs(altDiff) <= 50f && verticalMode == VerticalFlightMode.ALT_STAR) {
                 verticalMode = VerticalFlightMode.ALT_HOLD;
+                _ATHRDFunc.OP_CLB = false;
+                _ATHRDFunc.OP_DES = false;
                 targetVS = 0f;
                 targetFPA = 0f;
                 isExpedActive = false;
@@ -741,7 +761,12 @@ namespace A320VAU.FCU {
 
         public override void OnDeserialization() {
             base.OnDeserialization();
-            _ATHRDFunc.SetSpeed = Convert.ToInt32(targetSpeed / 1.9438445f);
+            //更新自动油门
+            _ATHRDFunc.SetSpeed = Convert.ToInt32(targetSpeed);
+            _ATHRDFunc.OP_CLB = false;
+            _ATHRDFunc.OP_DES = false;
+            if (verticalMode == VerticalFlightMode.OP_CLB) _ATHRDFunc.OP_CLB = true;
+            if (verticalMode == VerticalFlightMode.OP_DES)_ATHRDFunc.OP_DES = true;
             UpdateFCUDisplay();
             SyncToFMA(fmaController1);
             SyncToFMA(fmaController2);

@@ -41,7 +41,7 @@ namespace A320VAU {
 
         private float CruiseTemp;
         private float SpeedZeroPoint;
-        [NonSerialized] public float SetSpeed = 100f;
+        [NonSerialized] public float SetSpeed = 140;
 
         [NonSerialized] public bool Cruise;
         [NonSerialized] public bool OP_CLB = false;
@@ -243,7 +243,7 @@ namespace A320VAU {
             SetSpeed = Mathf.Max(SetSpeed + (equals - minus), 0);
 
             if (func_active) {
-                var error = SetSpeed - _saccAirVehicle.AirSpeed;
+                var error = SetSpeed - _saccAirVehicle.AirSpeed * 1.9438445f;
 
                 CruiseDerivative = (error - CruiseDerivativeLastFrame) / DeltaTime;
                 

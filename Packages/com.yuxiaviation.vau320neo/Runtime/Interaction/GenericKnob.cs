@@ -45,9 +45,10 @@ namespace A320VAU.Interaction {
 
         // 内部状态
         [SerializeField] private VRCPlayerApi localPlayer;
-        [SerializeField] private bool isVR = false;
+        [SerializeField] public bool isVR = false;
         [SerializeField] private bool isHandInside = false;
         private bool isStickClickPressed = false;
+        private bool isMenuLock = false;
         // VR 状态
         private Quaternion lastHandRotation;
         private bool isTriggerPressed = false;
@@ -104,7 +105,7 @@ namespace A320VAU.Interaction {
                 updateTimer = 0;
             }
             // 2. 输入响应
-            if ((isVR || debugTouhSource)&& isHandInside) {
+            if ((isVR || debugTouhSource)&& (isMenuVisible)) {
                 HandleStickSelection();
                 HandleVRWristRotation();
                 
@@ -166,8 +167,8 @@ namespace A320VAU.Interaction {
 
             // 2. 如果手离开距离，或者之前被判定为离开，清理状态并彻底关闭菜单
             //if (!isNear && !currentTriggerPressed) {
-            if (!isNear) {
-                    if (isHandInside || isMenuVisible) {
+            if (!isNear && !isMenuLock) {
+                    if (isHandInside || isMenuVisible ) {
                     isHandInside = false;
                     isTriggerPressed = false;
                     CloseMenu();
@@ -189,6 +190,7 @@ namespace A320VAU.Interaction {
                 if (!isMenuVisible) {
                     // 刚按下瞬间：向 Group 请求打开（确保排他性，自动关闭其他旋钮）
                     if (knobGroup != null) {
+                        isMenuLock = true;
                         knobGroup.RequestOpenMenu(this);
                     }
                     else {
@@ -204,6 +206,7 @@ namespace A320VAU.Interaction {
             else {
                 // 扳机处于松开状态：一旦松开立即关闭菜单
                 if (isMenuVisible) {
+                    isMenuLock = false;
                     CloseMenu();
                 }
             }
