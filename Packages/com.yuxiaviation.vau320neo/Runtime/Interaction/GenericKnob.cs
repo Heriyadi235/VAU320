@@ -60,7 +60,7 @@ namespace A320VAU.Interaction {
         private bool isMenuVisible = false;
 
         // 防抖坐标缓存 (Player Space Offset)
-        private Vector3 menuOffsetFromKnob = new Vector3(0f, 0.16f, 0f);
+        [SerializeField] public Vector3 menuOffsetFromKnob = new Vector3(0f, 0.06f, 0f);
 
         //更新频率控制
         [SerializeField] private float updateTimer = 0f;

@@ -308,9 +308,9 @@ namespace A320VAU.FCU {
         public void PushAltitudeKnob() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "PushAltitudeKnob_Owner");
         public void PullAltitudeKnob() => SendCustomNetworkEvent(NetworkEventTarget.Owner, "PullAltitudeKnob_Owner");
 
-        public void TurnVSKnoblus5h_Owner() => TurnVSKnob(5);
+        public void TurnVSKnoblus5h_Owner() => TurnVSKnob(4);
         public void TurnVSKnobPlus1h_Owner() => TurnVSKnob(1);
-        public void TurnVSKnobMinus5h_Owner() => TurnVSKnob(-5);
+        public void TurnVSKnobMinus5h_Owner() => TurnVSKnob(-4);
         public void TurnVSKnobbMinus1h_Owner() => TurnVSKnob(-1);
 
         #endregion
