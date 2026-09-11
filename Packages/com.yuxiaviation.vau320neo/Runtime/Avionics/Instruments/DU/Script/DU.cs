@@ -21,6 +21,7 @@ namespace A320VAU.PFD {
             _injector = DependenciesInjector.GetInstance(this);
             _eventBus = _injector.systemEventBus;
             _eventBus.RegisterSaccEvent(this);
+            displayUnitAnimator.keepAnimatorStateOnDisable = true;
         }
 
         // Sacc Event
@@ -49,7 +50,7 @@ namespace A320VAU.PFD {
         }
 
         public void StartSelftest() {
-            if (isSelfTestCompleted | !inSelfTest | byPassSelfTest) {
+            if (isSelfTestCompleted | !inSelfTest | byPassSelfTest | displayUnitAnimator.GetCurrentAnimatorStateInfo(1).IsName("self test")) {
                 return;
             }
             else {
