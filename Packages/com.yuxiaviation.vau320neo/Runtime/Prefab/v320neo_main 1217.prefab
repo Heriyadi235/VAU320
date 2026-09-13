@@ -13172,16 +13172,16 @@ MonoBehaviour:
   transitionSound: {fileID: 9202309819347720566}
   burstSound: {fileID: 8300000, guid: f5d025fff3e6a904592ee56d033d9f20, type: 3}
   breakSound: {fileID: 8300000, guid: 43fb17ae9580f2046b148d8019a66449, type: 3}
-  maxExtensionSpeed: 250
-  maxRetractionSpeed: 220
-  maxExtendedSpeed: 260
+  maxExtensionSpeed: 280
+  maxRetractionSpeed: 250
+  maxExtendedSpeed: 300
   brakeMaxGroundSpeed: 60
   mtbTransitionFail: 7200
   mtbTransitionFailOnOverspeed: 10
   mtbTransitionBraek: 28800
   mtbTransitionBraekOnOverspeed: 160
   mtbBurstOnOverGroundSpeed: 10
-  verticalSpeedLimit: 1000
+  verticalSpeedLimit: 3000
   burstVerticalSpeed: 1500
   burstEffect: {fileID: 1105364696500485504}
   timeNosieScale: 0.1
@@ -166775,16 +166775,16 @@ MonoBehaviour:
   transitionSound: {fileID: 4492977528154532518}
   burstSound: {fileID: 8300000, guid: f5d025fff3e6a904592ee56d033d9f20, type: 3}
   breakSound: {fileID: 8300000, guid: 43fb17ae9580f2046b148d8019a66449, type: 3}
-  maxExtensionSpeed: 250
-  maxRetractionSpeed: 220
-  maxExtendedSpeed: 280
+  maxExtensionSpeed: 280
+  maxRetractionSpeed: 250
+  maxExtendedSpeed: 300
   brakeMaxGroundSpeed: 60
   mtbTransitionFail: 7200
   mtbTransitionFailOnOverspeed: 10
   mtbTransitionBraek: 28800
   mtbTransitionBraekOnOverspeed: 160
   mtbBurstOnOverGroundSpeed: 10
-  verticalSpeedLimit: 1000
+  verticalSpeedLimit: 3000
   burstVerticalSpeed: 1500
   burstEffect: {fileID: 8293911907525849523}
   timeNosieScale: 0.1
@@ -168940,16 +168940,16 @@ MonoBehaviour:
   transitionSound: {fileID: 321487695340838361}
   burstSound: {fileID: 8300000, guid: f5d025fff3e6a904592ee56d033d9f20, type: 3}
   breakSound: {fileID: 8300000, guid: 43fb17ae9580f2046b148d8019a66449, type: 3}
-  maxExtensionSpeed: 250
-  maxRetractionSpeed: 220
-  maxExtendedSpeed: 280
+  maxExtensionSpeed: 280
+  maxRetractionSpeed: 250
+  maxExtendedSpeed: 300
   brakeMaxGroundSpeed: 60
   mtbTransitionFail: 7200
   mtbTransitionFailOnOverspeed: 10
   mtbTransitionBraek: 28800
   mtbTransitionBraekOnOverspeed: 160
   mtbBurstOnOverGroundSpeed: 10
-  verticalSpeedLimit: 1000
+  verticalSpeedLimit: 3000
   burstVerticalSpeed: 1500
   burstEffect: {fileID: 3013849774489697399}
   timeNosieScale: 0.1

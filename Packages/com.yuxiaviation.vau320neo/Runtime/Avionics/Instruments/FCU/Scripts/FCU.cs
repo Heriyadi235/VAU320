@@ -122,6 +122,7 @@ namespace A320VAU.FCU {
         #region Network
         private VRCPlayerApi localPlayer;
         private float altDiff;
+        private float VLS = 100;
         #endregion
         // ----------------------------------------------------
         // FCU 按钮与旋钮事件接口 (供VR手柄/Inspector按钮调用)
@@ -129,10 +130,38 @@ namespace A320VAU.FCU {
 
         #region Speed Knob Events
         public void TurnSpeedKnob(float delta) {
-                if (isMachMode)
+            // VLS
+            float VLSCONF0 = 194;
+            float VLSCONF1 = 165; //1
+            float VLSCONF1F = 148; //1F
+            float VLSCONF2 = 140; //2
+            float VLSCONF3 = 136; //3
+            float VLSCONFFULL = 134; //full    
+
+            //detentIndex:      0 1 2   3 4 5
+            //actural position: 0 1 1+f 2 3 f
+            switch (_aircraftSystemData.flapCurrentIndex) {
+                case 1:
+                    VLS = VLSCONF1;
+                    break;
+                case 2:
+                    VLS = VLSCONF1F;
+                    break;
+                case 3:
+                    VLS = VLSCONF2;
+                    break;
+                case 4:
+                    VLS = VLSCONF3;
+                    break;
+                case 5:
+                    VLS = VLSCONFFULL;
+                    break;
+            }
+
+            if (isMachMode)
                     targetSpeed = Mathf.Clamp(targetSpeed + delta * 0.01f, 0.10f, 0.99f);
                 else
-                    targetSpeed = Mathf.Clamp(targetSpeed + delta, 100f, 390f);
+                    targetSpeed = Mathf.Clamp(targetSpeed + delta, VLS, 390f);
                 _ATHRDFunc.SetSpeed = Convert.ToInt32(targetSpeed);
                 if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }

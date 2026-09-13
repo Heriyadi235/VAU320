@@ -41,7 +41,7 @@ namespace A320VAU {
 
         private float CruiseTemp;
         private float SpeedZeroPoint;
-        [NonSerialized] public float SetSpeed = 140;
+        [NonSerialized] public float SetSpeed = 190;
 
         [NonSerialized] public bool Cruise;
         [NonSerialized] public bool OP_CLB = false;

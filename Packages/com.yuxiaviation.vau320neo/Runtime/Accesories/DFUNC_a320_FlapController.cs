@@ -91,7 +91,7 @@ namespace A320VAU.DFUNC {
 
         /*[System.NonSerialized]*/ [UdonSynced(UdonSyncMode.None)] public int leverIndex;
         /*[HideInInspector]*/
-        public int detentIndex, targetDetentIndex; //detentIndex为 负n 表示襟翼向着n-1位置移动中
+        public int detentIndex, targetDetentIndex; //detentIndex为 负n 表示襟翼向着n+1位置移动中
         public float targetFlapAngle, targetSlatAngle, targetLift, targetDrag, targetSpeedLimit;
         public float flapAngle, slatAngle, speedLimit, lift, drag;
         public float maxFlapAngle, maxSlatAngle;

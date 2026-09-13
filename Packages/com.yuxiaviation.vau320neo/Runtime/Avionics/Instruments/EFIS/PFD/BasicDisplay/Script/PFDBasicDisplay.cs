@@ -237,11 +237,12 @@ namespace A320VAU.PFD {
         public int VLE = 280;
 
         // VSW
-        public float VSWCONF0 = 140; 
-        public float VSWCONF1 = 136; //1
-        public float VSWCONF2 = 133; //2
-        public float VSWCONF3 = 127; //3
-        public float VSWCONFFULL = 120; //full
+        public float VSWCONF0 = 165; 
+        public float VSWCONF1 = 140; //1
+        public float VSWCONF1F = 126; //1F
+        public float VSWCONF2 = 120; //2
+        public float VSWCONF3 = 116; //3
+        public float VSWCONFFULL = 113; //full
 
         // F and S
         // public int SSpeed = 178;
@@ -283,7 +284,6 @@ namespace A320VAU.PFD {
             #endregion
 
             #region VMAX
-
             var VMAX = VMO;
             var flaps = _aircraftSystemData.Flap;
             if (_aircraftSystemData.flapTargetSpeedLimit < VMAX)
@@ -299,66 +299,41 @@ namespace A320VAU.PFD {
 
             #endregion
 
-            #region VSW
 
-            var VSW = VSWCONF0;
-            switch (_aircraftSystemData.flapCurrentIndex) {
-                case 1:
-                    VSW = VSWCONF1;
-                    break;
-                case 3:
-                    VSW = VSWCONF2;
-                    break;
-                case 4:
-                    VSW = VSWCONF3;
-                    break;
-                case 5:
-                    VSW = VSWCONFFULL;
-                    break;
+            #region FLAP SPEEDS & ANIMATION CALCULATIONS
+            int currentIndex = _aircraftSystemData.flapCurrentIndex>0? 
+                _aircraftSystemData.flapCurrentIndex:
+                -_aircraftSystemData.flapCurrentIndex-1;
+
+            int targetIndex = flaps.targetDetentIndex;
+
+            // 1. 计算 VSW (基于当前形态)
+            float VSW = VSWCONF0;
+            switch (currentIndex) {
+                case 1: VSW = VSWCONF1; break;
+                case 2: VSW = VSWCONF1F; break;
+                case 3: VSW = VSWCONF2; break;
+                case 4: VSW = VSWCONF3; break;
+                case 5: VSW = VSWCONFFULL; break;
             }
 
-            //失速速度计算VS = VS1G/0.94;
-            //var VSW = _adiru.adr.Vstall;
-            //var VS1G = _adiru.adr.Vstall_1g;
+            // 2. 计算 VFE NEXT (基于目标档位)
+            float VFENext = flaps.speedLimits[1];
+            switch (targetIndex) {
+                case 1: VFENext = flaps.speedLimits[3]; break;
+                case 3: VFENext = flaps.speedLimits[4]; break;
+                case 4: VFENext = flaps.speedLimits[5]; break;
+            }
+
+            // 3. 计算 VLS 偷懒操作
+            float VLS = VSW * 1.13f;
+
+            // 4. 统一刷新动画状态机参数
             IndicatorAnimator.SetFloat(VSW_HASH, VSW / 300f);
-
-            #endregion
-
-            #region VFE NEXT
-
-            
-            var VFENext = flaps.speedLimits[1]; //0
-            switch (flaps.targetDetentIndex) {
-                case 1: //1
-                    VFENext = flaps.speedLimits[3];
-                    break;
-                case 3:
-                    VFENext = flaps.speedLimits[4];
-                    break;
-                case 4:
-                    VFENext = flaps.speedLimits[5];
-                    break;
-            }
-
             IndicatorAnimator.SetFloat(VFE_NEXT_HASH, VFENext / 240f);
-
-        #endregion
-
-        #region VLS
-
-            var VLS = 1.28f * VSW;
-            switch (flaps.detentIndex) {
-                case 4:
-                    VLS = 1.28f * VSW;
-                    break;
-                case 5:
-                    VLS = 1.13f * VSW;
-                    break;
-            }
-
             IndicatorAnimator.SetFloat(VLS_HASH, VLS / 200f);
 
-        #endregion
+            #endregion
         }
 
         private void UpdateMachNumber() {
