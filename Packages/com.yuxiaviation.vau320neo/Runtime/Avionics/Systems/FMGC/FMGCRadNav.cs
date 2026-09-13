@@ -1,6 +1,7 @@
 ﻿using JetBrains.Annotations;
 using UdonSharp;
 using VirtualCNS;
+using YamlDotNet.Serialization;
 
 namespace A320VAU.FMGC {
     [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
@@ -15,6 +16,38 @@ namespace A320VAU.FMGC {
         public NavSelector ILS;
 
         public NavSelector ADF;
+
+
+        public void Start() {
+            //重置导航状态
+            var defaultILS = -1;
+            var defaultVOR1 = -1;
+            var defaultVOR2 = -1;
+            bool VOR1hasSet = false;
+            if (fmgc.navaidDatabase) {
+                for (var i = 0; i < fmgc.navaidDatabase.Count; i++) {
+                    if (fmgc.navaidDatabase._IsILS(i)) {
+                        defaultILS = i;
+                    }
+                    else if (fmgc.navaidDatabase._IsVOR(i)) {
+                        if (!VOR1hasSet) {
+                            defaultVOR1 = i;
+                            defaultVOR2 = i;
+                            VOR1hasSet = true;
+                        }
+                        else {
+                            defaultVOR2 = i;
+                            break;
+                        }
+                    }
+                }
+            }
+            VOR1._SetIndex(defaultVOR1);
+            VOR2._SetIndex(defaultVOR2);
+            ILS._SetIndex(defaultILS);
+       
+        }
+
 
         [PublicAPI]
         public bool SetVORByName(int index, string identity) {
