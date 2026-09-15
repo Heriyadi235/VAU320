@@ -113,8 +113,8 @@ namespace A320VAU.Autopilot {
             // ----------------------------------------------------
             // 6. A320 G力与迎角保护 (Alpha / G Limiter)
             // ----------------------------------------------------
-            float currentG = (float)SAVControl.GetProgramVariable("VertGs");
-            float currentAoA = Mathf.Abs((float)SAVControl.GetProgramVariable("AngleOfAttack"));
+            float currentG = adiru.adr.verticalG;
+            float currentAoA = Mathf.Abs(adiru.adr.angleOfAttack);
 
             // G力限制衰减
             float gLimitFactor = 1.0f;

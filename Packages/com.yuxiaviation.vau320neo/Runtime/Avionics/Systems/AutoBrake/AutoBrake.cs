@@ -240,7 +240,7 @@ namespace A320VAU {
     #endregion
 
         private float GetDecelerationRate() {
-            var velocity = _saccAirVehicle.CurrentVel;
+            var velocity = _adiru.irs.velocity;
 
             var acceleration = (velocity - _lastVelocity) / Time.fixedDeltaTime;
             var temp = _saccAirVehicle.transform.rotation * acceleration;

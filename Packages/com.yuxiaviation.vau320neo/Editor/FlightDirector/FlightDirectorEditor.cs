@@ -1,4 +1,4 @@
-#if UNITY_EDITOR
+ï»¿#if UNITY_EDITOR
 using UnityEditor;
 using UnityEngine;
 
@@ -6,23 +6,23 @@ namespace A320VAU.Avionics {
     [CustomEditor(typeof(FlightDirector))]
     public class FlightDirectorEditor : UnityEditor.Editor {
         public override void OnInspectorGUI() {
-            // »æÖÆÄ¬ÈÏÃæ°åÊôĞÔ
+            // ç»˜åˆ¶é»˜è®¤é¢æ¿å±æ€§
             DrawDefaultInspector();
 
             FlightDirector fd = (FlightDirector)target;
-            // »æÖÆÄ¬ÈÏÊôĞÔ
+            // ç»˜åˆ¶é»˜è®¤å±æ€§
             serializedObject.Update();
 
             /*
             EditorGUILayout.Space(5);
-            EditorGUILayout.LabelField("--- ÒıÓÃ ---", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("--- å¼•ç”¨ ---", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(serializedObject.FindProperty("fcu"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("fmgc"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("maxPitchDev"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("maxRollDev"));
             
             EditorGUILayout.Space(10);
-            EditorGUILayout.LabelField("--- ×´Ì¬ ---", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("--- çŠ¶æ€ ---", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(serializedObject.FindProperty("vMode"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("lMode"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("isFDOn"));
@@ -30,7 +30,7 @@ namespace A320VAU.Avionics {
             
             EditorGUILayout.Space(10);
 
-            EditorGUILayout.LabelField("--- ¿ØÖÆÆ÷ ---", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("--- æ§åˆ¶å™¨ ---", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(serializedObject.FindProperty("altHoldKp"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("altHoldKi"));
             EditorGUILayout.Space(2);
@@ -47,23 +47,23 @@ namespace A320VAU.Avionics {
             EditorGUILayout.PropertyField(serializedObject.FindProperty("headingKp"));
 
             */
-            EditorGUILayout.LabelField("--- ¶¯Ì¬ÔËĞĞ¼àÊÓ (Live Readout) ---", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("--- åŠ¨æ€è¿è¡Œç›‘è§† (Live Readout) ---", EditorStyles.boldLabel);
 
-            // ÔÚ Editor ÏÂÒÔ½ø¶ÈÌõ·½Ê½Ö±¹Û¼àÊÓ¹éÒ»»¯¶¯»­Êä³ö [0, 1]
+            // åœ¨ Editor ä¸‹ä»¥è¿›åº¦æ¡æ–¹å¼ç›´è§‚ç›‘è§†å½’ä¸€åŒ–åŠ¨ç”»è¾“å‡º [0, 1]
             if (Application.isPlaying) {
-                EditorGUI.ProgressBar(EditorGUILayout.GetControlRect(), fd.fdVerNormalized, $"FD_ver (¸©Ñö): {fd.fdVerNormalized:F3}");
+                EditorGUI.ProgressBar(EditorGUILayout.GetControlRect(), fd.fdVerNormalized, $"FD_ver (ä¿¯ä»°): {fd.fdVerNormalized:F3}");
                 EditorGUILayout.Space(2);
-                EditorGUI.ProgressBar(EditorGUILayout.GetControlRect(), fd.fdHorNormalized, $"FD_hor (¹ö×ª): {fd.fdHorNormalized:F3}");
+                EditorGUI.ProgressBar(EditorGUILayout.GetControlRect(), fd.fdHorNormalized, $"FD_hor (æ»šè½¬): {fd.fdHorNormalized:F3}");
 
                 EditorGUILayout.Space(5);
                 EditorGUILayout.HelpBox(
-                    $"[¸©ÑöÍ¨µÀ] Ä¿±ê: {fd.debugTargetPitch:F2}¡ã | µ±Ç°: {fd.debugCurrentPitch:F2}¡ã | Æ«²î: {(fd.debugTargetPitch - fd.debugCurrentPitch):F2}¡ã\n" +
-                    $"[¹ö×ªÍ¨µÀ] Ä¿±ê: {fd.debugTargetRoll:F2}¡ã | µ±Ç°: {fd.debugCurrentRoll:F2}¡ã | Æ«²î: {(fd.debugTargetRoll - fd.debugCurrentRoll):F2}¡ã",
+                    $"[ä¿¯ä»°é€šé“] ç›®æ ‡: {fd.debugTargetPitch:F2}Â° | å½“å‰: {fd.debugCurrentPitch:F2}Â° | åå·®: {(fd.debugTargetPitch - fd.debugCurrentPitch):F2}Â°\n" +
+                    $"[æ»šè½¬é€šé“] ç›®æ ‡: {fd.debugTargetRoll:F2}Â° | å½“å‰: {fd.debugCurrentRoll:F2}Â° | åå·®: {(fd.debugTargetRoll - fd.debugCurrentRoll):F2}Â°",
                     MessageType.Info
                 );
             }
             else {
-                EditorGUILayout.HelpBox("½øÈë Play Ä£Ê½ºó²é¿´¶¯Ì¬Æ«²îÓë¶¯»­Êä³ö½ø¶ÈÌõ¡£", MessageType.None);
+                EditorGUILayout.HelpBox("è¿›å…¥ Play æ¨¡å¼åæŸ¥çœ‹åŠ¨æ€åå·®ä¸åŠ¨ç”»è¾“å‡ºè¿›åº¦æ¡ã€‚", MessageType.None);
             }
 
             serializedObject.ApplyModifiedProperties();

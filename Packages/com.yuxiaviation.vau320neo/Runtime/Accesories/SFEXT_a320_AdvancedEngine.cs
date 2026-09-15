@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using A320VAU.Common;
 using Avionics.Systems.Common;
 using EsnyaSFAddons.SFEXT;

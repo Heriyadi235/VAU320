@@ -1,7 +1,6 @@
 ﻿using JetBrains.Annotations;
 using UdonSharp;
 using VirtualCNS;
-using YamlDotNet.Serialization;
 
 namespace A320VAU.FMGC {
     [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]

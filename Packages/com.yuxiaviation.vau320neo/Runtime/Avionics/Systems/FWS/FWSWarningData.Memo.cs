@@ -1,4 +1,4 @@
-namespace A320VAU.FWS {
+﻿namespace A320VAU.FWS {
     public partial class FWSWarningData {
 
         private void SetupMemo() {

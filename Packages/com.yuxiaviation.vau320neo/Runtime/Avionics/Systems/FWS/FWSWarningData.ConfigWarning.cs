@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace A320VAU.FWS {
     public partial class FWSWarningData {

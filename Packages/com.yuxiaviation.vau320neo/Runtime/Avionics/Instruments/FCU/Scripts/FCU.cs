@@ -141,6 +141,9 @@ namespace A320VAU.FCU {
             //detentIndex:      0 1 2   3 4 5
             //actural position: 0 1 1+f 2 3 f
             switch (_aircraftSystemData.flapCurrentIndex) {
+                case 0:
+                    VLS = VLSCONF0;
+                    break;
                 case 1:
                     VLS = VLSCONF1;
                     break;
@@ -517,7 +520,7 @@ namespace A320VAU.FCU {
         }
 
         //设定FMA显示
-        private void SyncToFMA(FMAController fmaController) {
+        private void SyncToFMA(FMAController fmaController,uint idx) {
             if (fmaController == null) return;
 
             // 1. 同步 AP & FD & ATHR 激活状态
@@ -526,96 +529,113 @@ namespace A320VAU.FCU {
             fmaController.IsFlightDirector1Active = isFD1Active;
             fmaController.IsFlightDirector2Active = isFD2Active;
             fmaController.IsAutoThrustActive = isATHRActive;
-            // 2. 将纵向模式映射为 FMA 文本
-            //激活
-            switch (verticalMode) {
-                case VerticalFlightMode.None:
+
+            
+            fmaController.VerticalActiveMode = "";
+            fmaController.LateralActiveMode = "";
+            fmaController.VerticalArmMode = "";
+            fmaController.LateralArmMode = "";
+
+            if ((idx == 1 && isFD1Active) || (idx == 2 && isFD2Active)) {
+                if (_aircraftSystemData.isAircraftGrounded && verticalMode != VerticalFlightMode.SRS) {
                     fmaController.VerticalActiveMode = "";
-                    break;
-                case VerticalFlightMode.ALT_HOLD:
-                    fmaController.VerticalActiveMode = "ALT";
-                    break;
-                case VerticalFlightMode.ALT_STAR:
-                    fmaController.VerticalActiveMode = "ALT*";
-                    break;
-                case VerticalFlightMode.OP_CLB:
-                    fmaController.VerticalActiveMode = "OP CLB";
-                    break;
-                case VerticalFlightMode.OP_DES:
-                    fmaController.VerticalActiveMode = "OP DES";
-                    break;
-                case VerticalFlightMode.SRS:
-                    fmaController.VerticalActiveMode = "SRS";
-                    break;
-
-                case VerticalFlightMode.CLB:
-                    fmaController.VerticalActiveMode = "CLB";
-                    break;
-
-                case VerticalFlightMode.DES:
-                    fmaController.VerticalActiveMode = "DES";
-                    break;
-
-                case VerticalFlightMode.EXPED:
-                    fmaController.VerticalActiveMode = "EXPED";
-                    break;
-                case VerticalFlightMode.VS:
-                    fmaController.VerticalActiveMode = "V/S " + targetVS.ToString("+0000;-0000;+0000"); ;
-                    break;
-                case VerticalFlightMode.GS:
-                    fmaController.VerticalActiveMode = "G/S";
-                    break;
-                case VerticalFlightMode.FPA:
-                    fmaController.VerticalActiveMode = "FPA " + targetFPA.ToString("+0.0;-0.0;+0.0") + "°";
-                    break;
-                default:
-                    fmaController.VerticalActiveMode = "";
-                    break;
-            }
-            //预位
-            fmaController.VerticalArmMode = GetVerticalArmedMode();
-
-
-            // 3. 将横向模式映射为 FMA 文本
-            //激活
-            switch (lateralMode) {
-                case LateralFlightMode.None:
                     fmaController.LateralActiveMode = "";
-                    break;
-                case LateralFlightMode.RWY_TRK:
-                    fmaController.LateralActiveMode = "RWY TRK";
-                    break;
-                case LateralFlightMode.HDG:
-                    fmaController.LateralActiveMode = isTrkFpaMode ? "TRK" : "HDG";
-                    break;
+                    fmaController.VerticalArmMode = GetVerticalArmedMode(true);
+                    fmaController.LateralArmMode = GetLateralArmedMode(true);
+                    return;
+                }
 
-                case LateralFlightMode.NAV:
-                    fmaController.LateralActiveMode = "NAV";
-                    break;
+                // 2. 将纵向模式映射为 FMA 文本
+                //激活
+                switch (verticalMode) {
+                    case VerticalFlightMode.None:
+                        fmaController.VerticalActiveMode = "";
+                        break;
+                    case VerticalFlightMode.ALT_HOLD:
+                        fmaController.VerticalActiveMode = "ALT";
+                        break;
+                    case VerticalFlightMode.ALT_STAR:
+                        fmaController.VerticalActiveMode = "ALT*";
+                        break;
+                    case VerticalFlightMode.OP_CLB:
+                        fmaController.VerticalActiveMode = "OP CLB";
+                        break;
+                    case VerticalFlightMode.OP_DES:
+                        fmaController.VerticalActiveMode = "OP DES";
+                        break;
+                    case VerticalFlightMode.SRS:
+                        fmaController.VerticalActiveMode = "SRS";
+                        break;
 
-                case LateralFlightMode.LOC:
-                    fmaController.LateralActiveMode = "LOC";
-                    break;
+                    case VerticalFlightMode.CLB:
+                        fmaController.VerticalActiveMode = "CLB";
+                        break;
 
-                case LateralFlightMode.LAND:
-                    fmaController.LateralActiveMode = "LAND";
-                    break;
+                    case VerticalFlightMode.DES:
+                        fmaController.VerticalActiveMode = "DES";
+                        break;
 
-                case LateralFlightMode.RWY:
-                    fmaController.LateralActiveMode = "RWY";
-                    break;
+                    case VerticalFlightMode.EXPED:
+                        fmaController.VerticalActiveMode = "EXPED";
+                        break;
+                    case VerticalFlightMode.VS:
+                        fmaController.VerticalActiveMode = "V/S " + targetVS.ToString("+0000;-0000;+0000"); ;
+                        break;
+                    case VerticalFlightMode.GS:
+                        fmaController.VerticalActiveMode = "G/S";
+                        break;
+                    case VerticalFlightMode.FPA:
+                        fmaController.VerticalActiveMode = "FPA " + targetFPA.ToString("+0.0;-0.0;+0.0") + "°";
+                        break;
+                    default:
+                        fmaController.VerticalActiveMode = "";
+                        break;
+                }
+                //预位
+                fmaController.VerticalArmMode = GetVerticalArmedMode(false);
 
-                case LateralFlightMode.GA_TRK:
-                    fmaController.LateralActiveMode = "GA TRK";
-                    break;
+                // 3. 将横向模式映射为 FMA 文本
+                //激活
+                switch (lateralMode) {
+                    case LateralFlightMode.None:
+                        fmaController.LateralActiveMode = "";
+                        break;
+                    case LateralFlightMode.RWY_TRK:
+                        fmaController.LateralActiveMode = "RWY TRK";
+                        break;
+                    case LateralFlightMode.HDG:
+                        fmaController.LateralActiveMode = isTrkFpaMode ? "TRK" : "HDG";
+                        break;
 
-                default:
-                    fmaController.LateralActiveMode = "";
-                    break;
+                    case LateralFlightMode.NAV:
+                        fmaController.LateralActiveMode = "NAV";
+                        break;
+
+                    case LateralFlightMode.LOC:
+                        fmaController.LateralActiveMode = "LOC";
+                        break;
+
+                    case LateralFlightMode.LAND:
+                        fmaController.LateralActiveMode = "LAND";
+                        break;
+
+                    case LateralFlightMode.RWY:
+                        fmaController.LateralActiveMode = "RWY";
+                        break;
+
+                    case LateralFlightMode.GA_TRK:
+                        fmaController.LateralActiveMode = "GA TRK";
+                        break;
+
+                    default:
+                        fmaController.LateralActiveMode = "";
+                        break;
+                }
+
+                // 预位
+                fmaController.LateralArmMode = GetLateralArmedMode(false);
             }
 
-            // 预位
-            fmaController.LateralArmMode = GetLateralArmedMode();
 
             //4.推力模式
             if (_ATHRDFunc.Cruise || _ATHRDFunc.isAutoThrustArm) {
@@ -658,8 +678,8 @@ namespace A320VAU.FCU {
             isFD1Active = PFD_PF.isFlightDirectionOn;
             isFD2Active = PFD_PM.isFlightDirectionOn;
             UpdateFCUDisplay();
-            SyncToFMA(fmaController2);
-            SyncToFMA(fmaController1);
+            SyncToFMA(fmaController2,2);
+            SyncToFMA(fmaController1,1);
         }
 
         public void ResetFCU() {
@@ -695,91 +715,127 @@ namespace A320VAU.FCU {
 
             // 5. 立即刷新硬件与 FMA 显示面板
             UpdateFCUDisplay();
-            SyncToFMA(fmaController1);
-            SyncToFMA(fmaController2);
+            SyncToFMA(fmaController1,1);
+            SyncToFMA(fmaController2,1);
         }
-        private string GetVerticalArmedMode() {
+        private string GetVerticalArmedMode(bool isGrounded) {
             // 优先级 1：盲降/进近预位（按下 APPR 且未截获 G/S）
-            if (apprStatus == ApprModeStatus.Armed && verticalMode != VerticalFlightMode.GS) {
-                return "G/S";
-            }
+            if (!isGrounded) {
+                if (apprStatus == ApprModeStatus.Armed && verticalMode != VerticalFlightMode.GS) {
+                    return "G/S";
+                }
 
-            // 优先级 2：起飞/复飞 SRS 阶段（根据引导模式预位 CLB 或 巡航/爬升高度）
-            if (verticalMode == VerticalFlightMode.SRS) {
-                bool isClimb = targetAltitude >= _current_altitude && Mathf.Abs(_current_altitude - targetAltitude) > 100f;
+                // 优先级 2：起飞/复飞 SRS 阶段（根据引导模式预位 CLB 或 巡航/爬升高度）
+                if (verticalMode == VerticalFlightMode.SRS) {
+                    bool isClimb = targetAltitude >= _current_altitude && Mathf.Abs(_current_altitude - targetAltitude) > 100f;
 
-                if (verticalGuidance == GuidanceMode.Selected)
-                    return isClimb ? "OP CLB" : "OP DES"; // 修正下划线为标准 FMA 字符串格式
-                else
-                    return isClimb ? "CLB" : "DES";
-            }
+                    if (verticalGuidance == GuidanceMode.Selected)
+                        return isClimb ? "OP CLB" : "OP DES"; // 修正下划线为标准 FMA 字符串格式
+                    else
+                        return isClimb ? "CLB" : "DES";
+                }
 
-            // 优先级 3：常规爬升/下降/平飞阶段，若未处于 ALT/ALT* 或 G/S 阶段，自动预位 ALT
-            if (verticalMode != VerticalFlightMode.ALT_HOLD &&
-                verticalMode != VerticalFlightMode.ALT_STAR &&
-                verticalMode != VerticalFlightMode.GS && 
-                verticalMode != VerticalFlightMode.VS) {
-                return "ALT";
-            }
+                // 优先级 3：常规爬升/下降/平飞阶段，若未处于 ALT/ALT* 或 G/S 阶段，自动预位 ALT
+                if (verticalMode != VerticalFlightMode.ALT_HOLD &&
+                    verticalMode != VerticalFlightMode.ALT_STAR &&
+                    verticalMode != VerticalFlightMode.GS &&
+                    verticalMode != VerticalFlightMode.VS) {
+                    return "ALT";
+                }
 
-            //单独处理VS预位的逻辑
-            if (verticalMode == VerticalFlightMode.VS) {
-                //如果上升或下降的方向一致才会预位置alt
-                if (Mathf.Sign(altDiff) != Mathf.Sign(targetVS)) return "ALT";
-            }
+                //单独处理VS预位的逻辑
+                if (verticalMode == VerticalFlightMode.VS) {
+                    //如果上升或下降的方向一致才会预位置alt
+                    if (Mathf.Sign(altDiff) != Mathf.Sign(targetVS)) return "ALT";
+                }
                 // 默认无预位显示
-               return "";
+                return "";
+            }
+            else {
+                //if (verticalMode == VerticalFlightMode.SRS) {
+                    bool isClimb = targetAltitude >= _current_altitude && Mathf.Abs(_current_altitude - targetAltitude) > 100f;
+                    if (verticalGuidance == GuidanceMode.Selected)
+                        return isClimb ? "OP CLB" : "OP DES"; // 修正下划线为标准 FMA 字符串格式
+                    else
+                        return isClimb ? "CLB" : "DES";
+                //}
+                // 默认无预位显示
+                return "";
+            }
+
+            
         }
 
-        private string GetLateralArmedMode() {
+        private string GetLateralArmedMode(bool isGrounded) {
             // 1. 航向道/盲降截获预位（按下 APPR/LOC 且尚未截获 LOC）
-            if (locStatus == ApprModeStatus.Armed && lateralMode != LateralFlightMode.LOC) {
-                return "LOC";
-            }
+            if (!isGrounded) {
+                if (locStatus == ApprModeStatus.Armed && lateralMode != LateralFlightMode.LOC) {
+                    return "LOC";
+                }
 
-            // 2. 导航预位：托管模式下，且当前未进入 LOC、LAND 或已经截获 NAV 的阶段
-            if (lateralGuidance == GuidanceMode.Managed &&
-                lateralMode != LateralFlightMode.NAV &&
-                lateralMode != LateralFlightMode.LOC &&
-                lateralMode != LateralFlightMode.LAND) {
-                return "NAV";
+                // 2. 导航预位：托管模式下，且当前未进入 LOC、LAND 或已经截获 NAV 的阶段
+                if (lateralGuidance == GuidanceMode.Managed &&
+                    lateralMode != LateralFlightMode.NAV &&
+                    lateralMode != LateralFlightMode.LOC &&
+                    lateralMode != LateralFlightMode.LAND) {
+                    return "NAV";
+                }
+                // 3. 默认无预位
+                return "";
             }
+            else {
+                if (lateralGuidance == GuidanceMode.Selected) return "HDG";
+                if (lateralGuidance == GuidanceMode.Managed) return "NAV";
+                // 3. 默认无预位
+                return "";
 
-            // 3. 默认无预位
-            return "";
+            }
+            
         }
-        
+
         private void CheckAltitudeCapture() {
             // 已在非高度控制模式下跳过检测
-            if (
-                verticalMode == VerticalFlightMode.GS || verticalMode == VerticalFlightMode.ALT_HOLD ||
-                verticalMode == VerticalFlightMode.SRS) return;
-            
-            if (verticalMode == VerticalFlightMode.VS) {
-                //todo:避免没有调高度拔出VS时，飞机会锁定当前高度
-
-            }
+            if (verticalMode == VerticalFlightMode.GS ||
+                verticalMode == VerticalFlightMode.SRS) return; //这些逻辑还没写
 
             altDiff = _current_altitude - targetAltitude;
-            
-            // 当接近目标高度（例如 50 英尺以内）时自动平飞切入 ALT_HOLD
-            // 1. 接近目标高度（如 250 英尺以内）：切入 ALT* (ALT Star) 捕获模式
-            if (Mathf.Abs(altDiff) <= 250f && Mathf.Abs(altDiff) > 100f) {
-                if (verticalMode != VerticalFlightMode.ALT_STAR) {
-                    verticalMode = VerticalFlightMode.ALT_STAR;
+
+            // 爬升切ALT*
+            if (verticalMode == VerticalFlightMode.CLB || verticalMode == VerticalFlightMode.OP_CLB ||
+                verticalMode == VerticalFlightMode.OP_DES || verticalMode == VerticalFlightMode.DES ||
+                verticalMode == VerticalFlightMode.VS) { 
+                if (Mathf.Abs(altDiff) <= 250f && Mathf.Abs(altDiff) > 100f) {
+                        verticalMode = VerticalFlightMode.ALT_STAR;
+                        _ATHRDFunc.OP_CLB = false;
+                        _ATHRDFunc.OP_DES = false;
+                }
+                else if (Mathf.Abs(altDiff) <= 100f) {
+                        verticalMode = VerticalFlightMode.ALT_HOLD;
+                        _ATHRDFunc.OP_CLB = false;
+                        _ATHRDFunc.OP_DES = false;
+                        targetVS = 0f;
+                        targetFPA = 0f;
+                        isExpedActive = false;
+                    }//避免特殊情况直接捕获了目标高度
+            }
+            // ALT*切ALT
+            if (verticalMode == VerticalFlightMode.ALT_STAR)
+                if (Mathf.Abs(altDiff) <= 100f) {
+                    verticalMode = VerticalFlightMode.ALT_HOLD;
                     _ATHRDFunc.OP_CLB = false;
                     _ATHRDFunc.OP_DES = false;
+                    targetVS = 0f;
+                    targetFPA = 0f;
+                    isExpedActive = false;
                 }
+            if (verticalMode == VerticalFlightMode.ALT_HOLD) {
+                if (Mathf.Abs(altDiff) > 500f)
+                    if (Networking.IsOwner(gameObject)) {
+                        targetVS = 0;
+                        PullVSKnob_Owner();
+                    }
             }
-            // 2. 高度完全稳定（20 英尺以内）：由 ALT* 转换为 ALT_HOLD 保持模式
-            else if (Mathf.Abs(altDiff) <= 50f && verticalMode == VerticalFlightMode.ALT_STAR) {
-                verticalMode = VerticalFlightMode.ALT_HOLD;
-                _ATHRDFunc.OP_CLB = false;
-                _ATHRDFunc.OP_DES = false;
-                targetVS = 0f;
-                targetFPA = 0f;
-                isExpedActive = false;
-            }
+            
 
         }
 
@@ -797,8 +853,8 @@ namespace A320VAU.FCU {
             if (verticalMode == VerticalFlightMode.OP_CLB) _ATHRDFunc.OP_CLB = true;
             if (verticalMode == VerticalFlightMode.OP_DES)_ATHRDFunc.OP_DES = true;
             UpdateFCUDisplay();
-            SyncToFMA(fmaController1);
-            SyncToFMA(fmaController2);
+            SyncToFMA(fmaController1,1);
+            SyncToFMA(fmaController2,2);
         }
         #endregion
         /*

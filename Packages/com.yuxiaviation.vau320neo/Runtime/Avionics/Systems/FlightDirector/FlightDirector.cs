@@ -188,8 +188,8 @@ namespace A320VAU.Avionics {
                     float targetVsFpm = fcu.targetVS;
                     // theta approx = arcsin(VS / TAS)
                     float targetPitchRad = Mathf.Asin(Mathf.Clamp((targetVsFpm * 0.00508f) / (speedKts * 0.51444f), -0.5f, 0.5f));
-                    //return targetPitchRad * Mathf.Rad2Deg - currentTrackPitch; V/S模式考虑航迹角时震荡有点严重
-                    return targetPitchRad * Mathf.Rad2Deg;
+                    return targetPitchRad * Mathf.Rad2Deg - currentTrackPitch; //V/S模式考虑航迹角时震荡有点严重
+                    //return targetPitchRad * Mathf.Rad2Deg;
 
                 case VerticalFlightMode.FPA:
                     // FPA 模式：目标轨迹角（绿鸟模式下直接作为垂直目标）

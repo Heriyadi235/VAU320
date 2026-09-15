@@ -1,4 +1,6 @@
 ﻿using System;
+using A320VAU.ADIRU;
+using A320VAU.Common;
 using Avionics.Systems.Common;
 using SaccFlightAndVehicles;
 using UdonSharp;
@@ -65,13 +67,12 @@ namespace A320VAU.Brake {
 
         private bool UseLeftTrigger;
         private Rigidbody VehicleRigidbody;
+        private ADIRU.ADIRU _adiru;
 
         private void Update() {
             var DeltaTime = Time.deltaTime;
             if (IsOwner) {
                 triggerTapTime += Time.deltaTime;
-                var Speed = basicFilghtData.groundSpeed;
-                var CurrentVel = basicFilghtData.currentVelocity;
 
                 var Taxiing = SAVControl.Taxiing;
                 if (SAVControl.Piloting) {
@@ -195,6 +196,7 @@ namespace A320VAU.Brake {
         public void SFEXT_L_EntityStart() {
 
             SAVControl = basicFilghtData.SAVControl;
+            _adiru = DependenciesInjector.GetInstance(this).adiru;
             VehicleRigidbody = SAVControl.VehicleRigidbody;
             HasAirBrake = AirbrakeStrength != 0;
             RotMultiMaxSpeedDivider = 1 / (float)SAVControl.GetProgramVariable("RotMultiMaxSpeed");

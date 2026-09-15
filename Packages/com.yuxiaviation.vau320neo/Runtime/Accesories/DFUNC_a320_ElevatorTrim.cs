@@ -1,5 +1,7 @@
-using System;
+ï»¿using System;
 using System.Diagnostics.Eventing.Reader;
+using A320VAU.ADIRU;
+using A320VAU.Common;
 using SaccFlightAndVehicles;
 //using Serilog.Filters;
 using TMPro;
@@ -11,24 +13,25 @@ using YuxiFlightInstruments.BasicFlightData;
 //note:this code is original from https://github.com/esnya/EsnyaSFAddons
 //to satisfy vau320's demand, add autotrim
 //to optimize change vellift in SAV to trim
-//2024-09-29 ³¢ÊÔÒ»¸öÐÂ¶«Î÷£¬ÏÈ°ÑÕâ¸ö½Å±¾×÷ÓÃÔÚJoystickOverriddeÉÏ£¬£¨FBW£¿£©
+//2024-09-29 ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½Â¶ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È°ï¿½ï¿½ï¿½ï¿½ï¿½Å±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½JoystickOverriddeï¿½Ï£ï¿½ï¿½ï¿½FBWï¿½ï¿½ï¿½ï¿½
 namespace A320VAU.DFUNC {
     [UdonBehaviourSyncMode(BehaviourSyncMode.Continuous)]
     public class DFUNC_a320_ElevatorTrim : UdonSharpBehaviour {
 
         public YFI_FlightDataInterface BasicFlightData;
         public RadioAltimeter.RadioAltimeter radioAltimeter;
-        [Header("ÅäÆ½ÊäÈë")]
-        //[Tooltip("×î´óÅäÆ½Ç¿¶È£¬×÷ÓÃÓÚvelLift±äÁ¿£¬¶ÔÓÚ320¶øÑÔ¾ÍÊÇ10 £¨-10-10£¬-10Ê±»úÍ·»áÉÔÎ¢ÍùÏÂµô£©")]
+        private ADIRU _adiru;
+        [Header("ï¿½ï¿½Æ½ï¿½ï¿½ï¿½ï¿½")]
+        //[Tooltip("ï¿½ï¿½ï¿½ï¿½ï¿½Æ½Ç¿ï¿½È£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½velLiftï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½320ï¿½ï¿½ï¿½Ô¾ï¿½ï¿½ï¿½10 ï¿½ï¿½-10-10ï¿½ï¿½-10Ê±ï¿½ï¿½Í·ï¿½ï¿½ï¿½ï¿½Î¢ï¿½ï¿½ï¿½Âµï¿½ï¿½ï¿½")]
         //[Range(0, 50)] public float trimStrength = 10;
-        //[Tooltip("ÅäÆ½Ç¿¶ÈÆ«ÖÃ£¬×îÖÕµÄVelLift =trimStrength *x +  trimBias")]
+        //[Tooltip("ï¿½ï¿½Æ½Ç¿ï¿½ï¿½Æ«ï¿½Ã£ï¿½ï¿½ï¿½ï¿½Õµï¿½VelLift =trimStrength *x +  trimBias")]
         //[Range(0, 50)] public float trimBias = 8;
         
         private float prevTrim;
         
         public float initialTrim = -0.1f;
-        [UdonSynced] public float trim;//µ±Ç°ÅäÆ½Î»ÖÃ£¬-1~1
-        public float critiaclAOA = 20f;//ÁÙ½ç¹¥½Ç£¬sav.pitchaoaµÍÓÚ¸ÃÊýÖµÊ±£¬´¥·¢afloorProtect;
+        [UdonSynced] public float trim;//ï¿½ï¿½Ç°ï¿½ï¿½Æ½Î»ï¿½Ã£ï¿½-1~1
+        public float critiaclAOA = 20f;//ï¿½Ù½ç¹¥ï¿½Ç£ï¿½sav.pitchaoaï¿½ï¿½ï¿½Ú¸ï¿½ï¿½ï¿½ÖµÊ±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½afloorProtect;
 
         [Header("controller")]
         public float targetLoadFactor = 1;
@@ -40,12 +43,12 @@ namespace A320VAU.DFUNC {
         public float TrimErrorDerivative = 0;
 
         [Header("Controllor value for curise")]
-        public float kp1 = 0.04f; //ÔØºÉÏµÊý¿ØÖÆÂÊ 0.6 0.015 ¸©Ñö½Ç¿ØÖÆÂÊ 0.02 0.001
+        public float kp1 = 0.04f; //ï¿½Øºï¿½Ïµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 0.6 0.015 ï¿½ï¿½ï¿½ï¿½ï¿½Ç¿ï¿½ï¿½ï¿½ï¿½ï¿½ 0.02 0.001
         public float ki1 = 0.0015f;
         public float kd1 = 0.0001f;
 
         [Header("Controllor value for low speed (below 220kts)")]
-        //µÍ¿ÕÐ¡±íËÙ£¬Ê¹ÓÃÁíÒ»Ì×¸üÎÈ¶¨µÄ²ÎÊý
+        //ï¿½Í¿ï¿½Ð¡ï¿½ï¿½ï¿½Ù£ï¿½Ê¹ï¿½ï¿½ï¿½ï¿½Ò»ï¿½×¸ï¿½ï¿½È¶ï¿½ï¿½Ä²ï¿½ï¿½ï¿½
         public float kp2 = 0.25f; 
         public float ki2 = 0.4f;
         public float kd2 = 0.0003f;
@@ -62,9 +65,9 @@ namespace A320VAU.DFUNC {
 
         [Header("Debug")]
         public Transform debugControllerTransform;
-        [Tooltip("0-Ö±½Ó·¨Ôò 1-·ÉÐÐÄ£Ê½ 2-µØÃæÄ£Ê½ 3-À­Æ½Ä£Ê½")]
-        public int trimMode = 1; //0-Ö±½Ó·¨Ôò 1-·ÉÐÐÄ£Ê½ 2-µØÃæÄ£Ê½ 3-À­Æ½Ä£Ê½
-        public bool TrimActive = true; //µ±²à¸Ë(SFEXT_O_JoystickGrabbed/SFEXT_O_JoystickDropped)ÒÔ¼°AP(JoystickOverride)ÎÞÊäÈëÊ±£¬ÅäÆ½²Å¼¤»î
+        [Tooltip("0-Ö±ï¿½Ó·ï¿½ï¿½ï¿½ 1-ï¿½ï¿½ï¿½ï¿½Ä£Ê½ 2-ï¿½ï¿½ï¿½ï¿½Ä£Ê½ 3-ï¿½ï¿½Æ½Ä£Ê½")]
+        public int trimMode = 1; //0-Ö±ï¿½Ó·ï¿½ï¿½ï¿½ 1-ï¿½ï¿½ï¿½ï¿½Ä£Ê½ 2-ï¿½ï¿½ï¿½ï¿½Ä£Ê½ 3-ï¿½ï¿½Æ½Ä£Ê½
+        public bool TrimActive = true; //ï¿½ï¿½ï¿½ï¿½ï¿½(SFEXT_O_JoystickGrabbed/SFEXT_O_JoystickDropped)ï¿½Ô¼ï¿½AP(JoystickOverride)ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½Æ½ï¿½Å¼ï¿½ï¿½ï¿½
         public bool TrimActiveLastFrame = false;
         public bool afloorProtect = false;
         public bool lowSpeedMode = false;
@@ -72,7 +75,7 @@ namespace A320VAU.DFUNC {
         public Vector3 FBWRotationInputs;
 
         private void ResetStatus() {
-            //×Ô¶¯ÅäÆ½Ä¬ÈÏ¿ªÆô
+            //ï¿½Ô¶ï¿½ï¿½ï¿½Æ½Ä¬ï¿½Ï¿ï¿½ï¿½ï¿½
             trimMode = 0;
             Dial_Funcon.SetActive(TrimActive);
             prevTrim = trim = initialTrim;
@@ -89,12 +92,12 @@ namespace A320VAU.DFUNC {
         private void PilotUpdate() {
 
 
-            //¼ÆËãÅäÆ½Öµ
+            //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ½Öµ
             float DeltaTime = Time.deltaTime;
 
             var pitchInputs = SAVControl.RotationInputs.x;
 
-            //·ÉÐÐÄ£Ê½
+            //ï¿½ï¿½ï¿½ï¿½Ä£Ê½
             if (TrimActive &&
                 !SAVControl.Taxiing &&
                 radioAltimeter.radioAltitude >= 50 ) {
@@ -109,17 +112,17 @@ namespace A320VAU.DFUNC {
                     trim = initialTrim;
                 }
                 else { 
-                    if (SAVControl.AngleOfAttackPitch < critiaclAOA) {
+                    if(_adiru.adr.AOAPitch < critiaclAOA) {
                         afloorProtect = false;
                         targetLoadFactor = StickInputtoLoadFactor(pitchInputs, DeltaTime);
-                        TrimError = (targetLoadFactor - BasicFlightData.verticalG);
-                        TrimErrorIntergrate = Mathf.Clamp(TrimError * DeltaTime + TrimErrorIntergrate, -1, 1);//´¦Àí»ý·Ö±¥ºÍ
+                        TrimError = (targetLoadFactor - _adiru.adr.verticalG);
+                        TrimErrorIntergrate = Mathf.Clamp(TrimError * DeltaTime + TrimErrorIntergrate, -1, 1);//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö±ï¿½ï¿½ï¿½
                         TrimErrorDerivative = (TrimError - TrimErrorLastFrame) / DeltaTime;
                     }
                     else {
                         afloorProtect = true;
                         targetAoa = StickInputtoAoa(pitchInputs, DeltaTime);
-                        TrimError = targetAoa - BasicFlightData.AOAPitch;//todo:afloor¿ØÖÆÂÉ
+                        TrimError = targetAoa - _adiru.adr.AOAPitch;//todo:afloorï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
                         TrimErrorIntergrate = 0;
                         TrimErrorDerivative = 0;
                     }
@@ -128,7 +131,7 @@ namespace A320VAU.DFUNC {
                     var ki = ki1;
                     var kd = kd1;
 
-                    lowSpeedMode = SAVControl.AirSpeed < 110f;
+                    lowSpeedMode = _adiru.adr.instrumentAirSpeed / 1.94384f < 110f;
                     if (lowSpeedMode) {
                         kp = kp2;
                         ki = ki2;
@@ -142,7 +145,7 @@ namespace A320VAU.DFUNC {
 
             }
 
-            //µØÃæÄ£Ê½
+            //ï¿½ï¿½ï¿½ï¿½Ä£Ê½
             else if (TrimActive && SAVControl.Taxiing) {
                 if (trimMode != 2) {
                     trimMode = 2;
@@ -153,11 +156,11 @@ namespace A320VAU.DFUNC {
                 targetLoadFactor = StickInputtoLoadFactor(pitchInputs, DeltaTime);
             }
 
-            //À­Æ½Ä£Ê½
+            //ï¿½ï¿½Æ½Ä£Ê½
             else if (TrimActive &&
                 radioAltimeter.radioAltitude < 50 &&
                 !SAVControl.Taxiing &&
-                BasicFlightData.verticalSpeed < -0.6 &&
+                _adiru.adr.verticalSpeed < -0.6 &&
                 SAVControl.JoystickOverridden == 0) {
 
                 var targetTrim = initialTrim;
@@ -166,10 +169,10 @@ namespace A320VAU.DFUNC {
                     Debug.Log("[FBW]Touchdown Mode");
                     targetTrim = trim - 0.05f;
                 }
-                //¸©Ñö½Ç¿ØÖÆÂÊ
+                //ï¿½ï¿½ï¿½ï¿½ï¿½Ç¿ï¿½ï¿½ï¿½ï¿½ï¿½
                 /*
                 targetPitch = -2f;
-                TrimError = (targetPitch - BasicFlightData.pitch);
+                TrimError = (targetPitch - _adiru.irs.pitch);
                 TrimErrorIntergrate += TrimError;
                 TrimErrorDerivative = (TrimError - TrimErrorLastFrame) / DeltaTime;
                 trim = Mathf.Clamp(kp * TrimError + ki * TrimErrorIntergrate + kd * TrimErrorDerivative, -1, 1);
@@ -178,7 +181,7 @@ namespace A320VAU.DFUNC {
                 trim = Mathf.MoveTowards(trim, targetTrim, DeltaTime * 0.025f);
             }
             
-            //ÊÖ¶¯ÅäÆ½
+            //ï¿½Ö¶ï¿½ï¿½ï¿½Æ½
             else if (!TrimActive) {
                 var input = GetSliderInput();
                 trim = Mathf.Clamp(trim + input, -1, 1);
@@ -193,14 +196,14 @@ namespace A320VAU.DFUNC {
             var maxLoad = 2f;
             var minLoad = 0f;
 
-            var maxLoadRate = 1f * deltaTime;//Ã¿Ãë×î´ó±ä»¯1g
-            //SAV½Å±¾ÖÐÒÑ¾­×öÁËÊäÈëµÄÆ½·½»¯£¬ËùÒÔÕâÀïÖ±½ÓÏßÐÔ×ª»»ÎªÔØºÉÄ¿±ê
-            if (pitchInputs > 0.01) {//ÍÆ¸Ë 
+            var maxLoadRate = 1f * deltaTime;//Ã¿ï¿½ï¿½ï¿½ï¿½ï¿½ä»¯1g
+            //SAVï¿½Å±ï¿½ï¿½ï¿½ï¿½Ñ¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×ªï¿½ï¿½Îªï¿½Øºï¿½Ä¿ï¿½ï¿½
+            if (pitchInputs > 0.01) {//ï¿½Æ¸ï¿½ 
                 targetLoadFactor = Mathf.MoveTowards(targetLoadFactor,
                    (minLoad - 1f) * Mathf.Pow(pitchInputs, 2) + 1,
                     maxLoadRate);
             }
-            else if ((pitchInputs < -0.01)) {//À­¸Ë 
+            else if ((pitchInputs < -0.01)) {//ï¿½ï¿½ï¿½ï¿½ 
                 targetLoadFactor = Mathf.MoveTowards(targetLoadFactor,
                      (maxLoad - 1f) * Mathf.Pow(pitchInputs, 2) + 1,
                     maxLoadRate);
@@ -209,7 +212,7 @@ namespace A320VAU.DFUNC {
                 targetLoadFactor = Mathf.MoveTowards(targetLoadFactor, 1, maxLoadRate);
             }
             if (trimMode != 1)
-                //·ÉÐÐÄ£Ê½ÒÔÍâ¸øÒ»¸ö±È½ÏÐ¡µÄÔØºÉÄ¿±êÔ¼Êø£¬±ÜÃâÀëµØÊ±Ä£Ê½ÇÐ»»µ¼ÖÂÅäÆ½Î»ÖÃÍ»±ä
+                //ï¿½ï¿½ï¿½ï¿½Ä£Ê½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½È½ï¿½Ð¡ï¿½ï¿½ï¿½Øºï¿½Ä¿ï¿½ï¿½Ô¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±Ä£Ê½ï¿½Ð»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ½Î»ï¿½ï¿½Í»ï¿½ï¿½
                 return Mathf.Clamp(targetLoadFactor, 1f - 0.5f, 1f + 0.5f);
             else
                 return targetLoadFactor;
@@ -217,14 +220,14 @@ namespace A320VAU.DFUNC {
 
         private float StickInputtoAoa(float pitchInputs, float deltaTime) {
            
-            var maxLoadRate = 10f * deltaTime;//Ã¿Ãë×î´ó±ä»¯1µ¥Î»
-            //SAV½Å±¾ÖÐÒÑ¾­×öÁËÊäÈëµÄÆ½·½»¯£¬ËùÒÔÕâÀïÖ±½ÓÏßÐÔ×ª»»ÎªÔØºÉÄ¿±ê
-            if (pitchInputs > 0.01) {//ÍÆ¸Ë 
+            var maxLoadRate = 10f * deltaTime;//Ã¿ï¿½ï¿½ï¿½ï¿½ï¿½ä»¯1ï¿½ï¿½Î»
+            //SAVï¿½Å±ï¿½ï¿½ï¿½ï¿½Ñ¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×ªï¿½ï¿½Îªï¿½Øºï¿½Ä¿ï¿½ï¿½
+            if (pitchInputs > 0.01) {//ï¿½Æ¸ï¿½ 
                 targetAoa = Mathf.MoveTowards(targetAoa,
                     -(critiaclAOA) * Mathf.Pow(pitchInputs, 2),
                     maxLoadRate);
             }
-            else if ((pitchInputs < -0.01)) {//À­¸Ë
+            else if ((pitchInputs < -0.01)) {//ï¿½ï¿½ï¿½ï¿½
                 targetAoa = Mathf.MoveTowards(targetAoa,
                     (critiaclAOA) * Mathf.Pow(pitchInputs, 2),
                     maxLoadRate);
@@ -251,12 +254,12 @@ namespace A320VAU.DFUNC {
         private void FixedUpdate() {
             if (!isOwner) return;
 
-            var rotlift = Mathf.Clamp(SAVControl.AirSpeed / rotMultiMaxSpeed, -1, 1);
+            var rotlift = Mathf.Clamp((_adiru.adr.instrumentAirSpeed / 1.94384f) / rotMultiMaxSpeed, -1, 1);
             //var DeltaTime = Time.fixedDeltaTime;
             vehicleRigidbody.AddForceAtPosition((trim * SAVControl.PitchStrength) * rotlift * SAVControl.Atmosphere * -transform.up, transform.position, ForceMode.Force);
             
-            //³¢ÊÔÁË²»Í¬µÄ×÷ÓÃÁ¦·½Ê½
-            //1.¸ÄVelLiftStart
+            //ï¿½ï¿½ï¿½ï¿½ï¿½Ë²ï¿½Í¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê½
+            //1.ï¿½ï¿½VelLiftStart
             //SAVControl.SetProgramVariable("VelLiftStart", trim * trimStrength + trimBias);
             //2.AddForceAtPosition
 
@@ -357,6 +360,7 @@ namespace A320VAU.DFUNC {
         }
 
         public void SFEXT_L_EntityStart() {
+            _adiru = DependenciesInjector.GetInstance(this).adiru;
             controlsRoot = SAVControl.ControlsRoot;
             rotMultiMaxSpeed = SAVControl.RotMultiMaxSpeed;
             if (!controlsRoot) controlsRoot = entityControl.transform;
@@ -472,7 +476,7 @@ namespace A320VAU.DFUNC {
         }
 
         private float GetSliderInput() {
-            //Ê¹ÓÃÁËsavµÄ±ê¼Ç·½·¨£¬UP=-1 DOWN=1
+            //Ê¹ï¿½ï¿½ï¿½ï¿½savï¿½Ä±ï¿½Ç·ï¿½ï¿½ï¿½ï¿½ï¿½UP=-1 DOWN=1
             return -sliderInput;
         }
 

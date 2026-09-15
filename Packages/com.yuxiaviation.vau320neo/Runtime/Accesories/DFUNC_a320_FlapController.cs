@@ -330,7 +330,7 @@ namespace A320VAU.DFUNC {
         }
 
         private void ApplyDamage(float deltaTime) {
-            var airSpeed = airVehicle.AirSpeed * 1.94384f; // KAIS
+            var airSpeed = adiru.adr.instrumentAirSpeed;
             var damage = Mathf.Max(airSpeed - speedLimit, 0) / speedLimit * overspeedDamageMultiplier;
             if (damage > 0) {
                 if (!actuatorBroken && Random.value < damage * deltaTime / meanTimeBetweenActuatorBrokenOnOverspeed) {

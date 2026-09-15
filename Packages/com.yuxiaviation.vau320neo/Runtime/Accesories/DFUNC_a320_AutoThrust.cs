@@ -15,6 +15,7 @@ namespace A320VAU {
 
         private DependenciesInjector _injector;
         private AircraftSystemData _aircraftSystemData;
+        private ADIRU.ADIRU _adiru;
         private SaccAirVehicle _saccAirVehicle;
         private SaccEntity _saccEntity;
 
@@ -60,6 +61,7 @@ namespace A320VAU {
         private void Init() {
             _injector = DependenciesInjector.GetInstance(this);
             _aircraftSystemData = _injector.equipmentData;
+            _adiru = _injector.adiru;
             _saccAirVehicle = _injector.saccAirVehicle;
             _saccEntity = _injector.saccEntity;
 
@@ -243,7 +245,7 @@ namespace A320VAU {
             SetSpeed = Mathf.Max(SetSpeed + (equals - minus), 0);
 
             if (func_active) {
-                var error = SetSpeed - _saccAirVehicle.AirSpeed * 1.9438445f;
+                var error = SetSpeed - _adiru.adr.instrumentAirSpeed;
 
                 CruiseDerivative = (error - CruiseDerivativeLastFrame) / DeltaTime;
                 

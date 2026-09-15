@@ -1,4 +1,4 @@
-namespace A320VAU.FWS {
+﻿namespace A320VAU.FWS {
     public enum DisplayZone {
         Left = 0,
         Right = 1

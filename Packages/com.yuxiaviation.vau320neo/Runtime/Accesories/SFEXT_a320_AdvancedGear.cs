@@ -1,4 +1,6 @@
-using System;
+﻿using System;
+using A320VAU.ADIRU;
+using A320VAU.Common;
 using SaccFlightAndVehicles;
 using UdonSharp;
 using UnityEngine;
@@ -97,6 +99,7 @@ namespace A320VAU.SFEXT {
         #region SFEXT Core
         
         private SaccAirVehicle airVehicle;
+        private ADIRU _adiru;
         public DFUNC_a320_Brake brakeFunction;
 
         
@@ -106,6 +109,7 @@ namespace A320VAU.SFEXT {
         public void SFEXT_L_EntityStart() {
 
             airVehicle = basicFilghtData.SAVControl;
+            _adiru = DependenciesInjector.GetInstance(this).adiru;
 
             airVehicle.DisableTaxiRotation_++;
             vehicleAnimator = airVehicle.VehicleAnimator;
@@ -188,7 +192,7 @@ namespace A320VAU.SFEXT {
             var deltaTime = Time.deltaTime;
             var taxiing = airVehicle.Taxiing;
             
-            var groundSpeed = basicFilghtData.groundSpeed;
+            var groundSpeed = _adiru.irs.groundSpeed;
             if (isOwner) {
                 inTransition = !Mathf.Approximately(position, targetPosition);
                 moving = inTransition && !failed && !broken;
@@ -249,7 +253,7 @@ namespace A320VAU.SFEXT {
 
             if (isOwner) {
                 if (!retracted) {
-                    var ias = basicFilghtData.TAS;
+                    var ias = _adiru.adr.trueAirSpeed;
                     var maxSpeed = _GetMaxSpeed();
                     var overspeed = maxSpeed > 0 && ias > maxSpeed;
                     var mtbfMultiplier = overspeed ? ias / maxSpeed : 1.0f;
@@ -264,7 +268,7 @@ namespace A320VAU.SFEXT {
                         groundSpeed / brakeMaxGroundSpeed * wheelCollider.brakeTorque / brakeTorque /
                         mtbBurstOnOverGroundSpeed * Time.deltaTime > Random.value) Burst();
 
-                    var verticalSpeed = -basicFilghtData.verticalSpeed;
+                    var verticalSpeed = -_adiru.adr.verticalSpeed;
                     if (!prevIsGrounded && isGrounded) {
                         if (verticalSpeed > verticalSpeedLimit && Random.value <
                             (verticalSpeed - verticalSpeedLimit) / (burstVerticalSpeed - verticalSpeedLimit)) {
