@@ -13,25 +13,25 @@ using YuxiFlightInstruments.BasicFlightData;
 //note:this code is original from https://github.com/esnya/EsnyaSFAddons
 //to satisfy vau320's demand, add autotrim
 //to optimize change vellift in SAV to trim
-//2024-09-29 ����һ���¶������Ȱ�����ű�������JoystickOverridde�ϣ���FBW����
+//2024-09-29：增加自动配平功能，并在 JoystickOverride 上接入 FBW 控制。
 namespace A320VAU.DFUNC {
     [UdonBehaviourSyncMode(BehaviourSyncMode.Continuous)]
     public class DFUNC_a320_ElevatorTrim : UdonSharpBehaviour {
 
         public YFI_FlightDataInterface BasicFlightData;
         public RadioAltimeter.RadioAltimeter radioAltimeter;
-        private ADIRU _adiru;
-        [Header("��ƽ����")]
-        //[Tooltip("�����ƽǿ�ȣ�������velLift����������320���Ծ���10 ��-10-10��-10ʱ��ͷ����΢���µ���")]
+        private ADIRU.ADIRU _adiru;
+        [Header("配平参数")]
+        //[Tooltip("自动配平强度，用于调节 VelLift。A320 试飞时建议设置为 10；-10 到 10 时机头会略微下沉。")]
         //[Range(0, 50)] public float trimStrength = 10;
-        //[Tooltip("��ƽǿ��ƫ�ã����յ�VelLift =trimStrength *x +  trimBias")]
+        //[Tooltip("配平强度偏置，最终 VelLift = trimStrength * x + trimBias。")]
         //[Range(0, 50)] public float trimBias = 8;
         
         private float prevTrim;
         
         public float initialTrim = -0.1f;
-        [UdonSynced] public float trim;//��ǰ��ƽλ�ã�-1~1
-        public float critiaclAOA = 20f;//�ٽ繥�ǣ�sav.pitchaoa���ڸ���ֵʱ������afloorProtect;
+        [UdonSynced] public float trim;//当前配平位置，范围 -1 到 1。
+        public float critiaclAOA = 20f;//临界迎角；超过该值时启用 Alpha Floor 保护。
 
         [Header("controller")]
         public float targetLoadFactor = 1;
@@ -43,12 +43,12 @@ namespace A320VAU.DFUNC {
         public float TrimErrorDerivative = 0;
 
         [Header("Controllor value for curise")]
-        public float kp1 = 0.04f; //�غ�ϵ�������� 0.6 0.015 �����ǿ����� 0.02 0.001
+        public float kp1 = 0.04f; //巡航状态的比例系数。试验值：0.6、0.015；当前控制值：0.02、0.001。
         public float ki1 = 0.0015f;
         public float kd1 = 0.0001f;
 
-        [Header("Controllor value for low speed (below 220kts)")]
-        //�Ϳ�С���٣�ʹ����һ�׸��ȶ��Ĳ���
+        [Header("低速控制参数（低于 220 节）")]
+        //低速时使用另一组更加稳定的控制参数。
         public float kp2 = 0.25f; 
         public float ki2 = 0.4f;
         public float kd2 = 0.0003f;
@@ -65,9 +65,9 @@ namespace A320VAU.DFUNC {
 
         [Header("Debug")]
         public Transform debugControllerTransform;
-        [Tooltip("0-ֱ�ӷ��� 1-����ģʽ 2-����ģʽ 3-��ƽģʽ")]
-        public int trimMode = 1; //0-ֱ�ӷ��� 1-����ģʽ 2-����ģʽ 3-��ƽģʽ
-        public bool TrimActive = true; //�����(SFEXT_O_JoystickGrabbed/SFEXT_O_JoystickDropped)�Լ�AP(JoystickOverride)������ʱ����ƽ�ż���
+        [Tooltip("0 - 直接控制，1 - 飞行模式，2 - 地面模式，3 - 接地模式")]
+        public int trimMode = 1; //0 - 直接控制，1 - 飞行模式，2 - 地面模式，3 - 接地模式。
+        public bool TrimActive = true; //自动配平开关。由摇杆抓取/释放和 AP（JoystickOverride）逻辑共同控制。
         public bool TrimActiveLastFrame = false;
         public bool afloorProtect = false;
         public bool lowSpeedMode = false;
@@ -75,7 +75,7 @@ namespace A320VAU.DFUNC {
         public Vector3 FBWRotationInputs;
 
         private void ResetStatus() {
-            //�Զ���ƽĬ�Ͽ���
+            //默认启用自动配平。
             trimMode = 0;
             Dial_Funcon.SetActive(TrimActive);
             prevTrim = trim = initialTrim;
@@ -92,12 +92,12 @@ namespace A320VAU.DFUNC {
         private void PilotUpdate() {
 
 
-            //������ƽֵ
+            //计算自动配平值。
             float DeltaTime = Time.deltaTime;
 
             var pitchInputs = SAVControl.RotationInputs.x;
 
-            //����ģʽ
+            //飞行模式。
             if (TrimActive &&
                 !SAVControl.Taxiing &&
                 radioAltimeter.radioAltitude >= 50 ) {
@@ -116,13 +116,13 @@ namespace A320VAU.DFUNC {
                         afloorProtect = false;
                         targetLoadFactor = StickInputtoLoadFactor(pitchInputs, DeltaTime);
                         TrimError = (targetLoadFactor - _adiru.adr.verticalG);
-                        TrimErrorIntergrate = Mathf.Clamp(TrimError * DeltaTime + TrimErrorIntergrate, -1, 1);//�������ֱ���
+                        TrimErrorIntergrate = Mathf.Clamp(TrimError * DeltaTime + TrimErrorIntergrate, -1, 1);//限制积分项，防止积分饱和。
                         TrimErrorDerivative = (TrimError - TrimErrorLastFrame) / DeltaTime;
                     }
                     else {
                         afloorProtect = true;
                         targetAoa = StickInputtoAoa(pitchInputs, DeltaTime);
-                        TrimError = targetAoa - _adiru.adr.AOAPitch;//todo:afloor������
+                        TrimError = targetAoa - _adiru.adr.AOAPitch;//TODO：完善 Alpha Floor 保护逻辑。
                         TrimErrorIntergrate = 0;
                         TrimErrorDerivative = 0;
                     }
@@ -145,7 +145,7 @@ namespace A320VAU.DFUNC {
 
             }
 
-            //����ģʽ
+            //地面模式。
             else if (TrimActive && SAVControl.Taxiing) {
                 if (trimMode != 2) {
                     trimMode = 2;
@@ -156,7 +156,7 @@ namespace A320VAU.DFUNC {
                 targetLoadFactor = StickInputtoLoadFactor(pitchInputs, DeltaTime);
             }
 
-            //��ƽģʽ
+            //接地模式。
             else if (TrimActive &&
                 radioAltimeter.radioAltitude < 50 &&
                 !SAVControl.Taxiing &&
@@ -169,7 +169,7 @@ namespace A320VAU.DFUNC {
                     Debug.Log("[FBW]Touchdown Mode");
                     targetTrim = trim - 0.05f;
                 }
-                //�����ǿ�����
+                //接地后逐步减小配平量。
                 /*
                 targetPitch = -2f;
                 TrimError = (targetPitch - _adiru.irs.pitch);
@@ -181,7 +181,7 @@ namespace A320VAU.DFUNC {
                 trim = Mathf.MoveTowards(trim, targetTrim, DeltaTime * 0.025f);
             }
             
-            //�ֶ���ƽ
+            //手动配平。
             else if (!TrimActive) {
                 var input = GetSliderInput();
                 trim = Mathf.Clamp(trim + input, -1, 1);
@@ -196,14 +196,14 @@ namespace A320VAU.DFUNC {
             var maxLoad = 2f;
             var minLoad = 0f;
 
-            var maxLoadRate = 1f * deltaTime;//ÿ�����仯1g
-            //SAV�ű����Ѿ����������ƽ��������������ֱ������ת��Ϊ�غ�Ŀ��
-            if (pitchInputs > 0.01) {//�Ƹ� 
+            var maxLoadRate = 1f * deltaTime;//每秒最多变化 1G。
+            //SAV 脚本已经处理了升降舵输入，这里直接将其转换为载荷因数目标。
+            if (pitchInputs > 0.01) {//抬头。
                 targetLoadFactor = Mathf.MoveTowards(targetLoadFactor,
                    (minLoad - 1f) * Mathf.Pow(pitchInputs, 2) + 1,
                     maxLoadRate);
             }
-            else if ((pitchInputs < -0.01)) {//���� 
+            else if ((pitchInputs < -0.01)) {//低头。
                 targetLoadFactor = Mathf.MoveTowards(targetLoadFactor,
                      (maxLoad - 1f) * Mathf.Pow(pitchInputs, 2) + 1,
                     maxLoadRate);
@@ -212,7 +212,7 @@ namespace A320VAU.DFUNC {
                 targetLoadFactor = Mathf.MoveTowards(targetLoadFactor, 1, maxLoadRate);
             }
             if (trimMode != 1)
-                //����ģʽ�����һ���Ƚ�С���غ�Ŀ��Լ�����������ʱģʽ�л�������ƽλ��ͻ��
+                //非飞行模式限制载荷因数目标，避免模式切换时配平位置突变。
                 return Mathf.Clamp(targetLoadFactor, 1f - 0.5f, 1f + 0.5f);
             else
                 return targetLoadFactor;
@@ -220,14 +220,14 @@ namespace A320VAU.DFUNC {
 
         private float StickInputtoAoa(float pitchInputs, float deltaTime) {
            
-            var maxLoadRate = 10f * deltaTime;//ÿ�����仯1��λ
-            //SAV�ű����Ѿ����������ƽ��������������ֱ������ת��Ϊ�غ�Ŀ��
-            if (pitchInputs > 0.01) {//�Ƹ� 
+            var maxLoadRate = 10f * deltaTime;//每秒最多变化 10 度。
+            //SAV 脚本已经处理了升降舵输入，这里将其转换为迎角目标。
+            if (pitchInputs > 0.01) {//抬头。
                 targetAoa = Mathf.MoveTowards(targetAoa,
                     -(critiaclAOA) * Mathf.Pow(pitchInputs, 2),
                     maxLoadRate);
             }
-            else if ((pitchInputs < -0.01)) {//����
+            else if ((pitchInputs < -0.01)) {//低头。
                 targetAoa = Mathf.MoveTowards(targetAoa,
                     (critiaclAOA) * Mathf.Pow(pitchInputs, 2),
                     maxLoadRate);
@@ -258,8 +258,8 @@ namespace A320VAU.DFUNC {
             //var DeltaTime = Time.fixedDeltaTime;
             vehicleRigidbody.AddForceAtPosition((trim * SAVControl.PitchStrength) * rotlift * SAVControl.Atmosphere * -transform.up, transform.position, ForceMode.Force);
             
-            //�����˲�ͬ����������ʽ
-            //1.��VelLiftStart
+            //以下是不同配平实现方式的备选方案：
+            //1.修改 VelLiftStart。
             //SAVControl.SetProgramVariable("VelLiftStart", trim * trimStrength + trimBias);
             //2.AddForceAtPosition
 
@@ -270,7 +270,7 @@ namespace A320VAU.DFUNC {
             //trimPitching = ((((SAVControl.VehicleTransform.up * trim) + (SAVControl.VehicleTransform.up * downspeed * SAVControl.VelStraightenStrPitch * SAVControl.AoALiftPitch * rotlift)) * SAVControl.Atmosphere));
             //vehicleRigidbody.AddForceAtPosition(trimPitching, transform.position, ForceMode.Force);//deltatime is built into ForceMode.Force
 
-            //3.дJoystickOverride
+            //3.修改 JoystickOverride。
             //FBWRotationInputs.x = Mathf.Clamp(trim, -1, 1);
             //FBWRotationInputs.y = 0;
             //FBWRotationInputs.z = 0;
@@ -476,7 +476,7 @@ namespace A320VAU.DFUNC {
         }
 
         private float GetSliderInput() {
-            //ʹ����sav�ı�Ƿ�����UP=-1 DOWN=1
+            //使用 SAV 的符号约定：UP = -1，DOWN = 1。
             return -sliderInput;
         }
 

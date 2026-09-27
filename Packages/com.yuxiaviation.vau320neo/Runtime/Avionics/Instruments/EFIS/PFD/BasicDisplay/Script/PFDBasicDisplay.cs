@@ -308,6 +308,7 @@ namespace A320VAU.PFD {
             int targetIndex = flaps.targetDetentIndex;
 
             // 1. 计算 VSW (基于当前形态)
+            /*
             float VSW = VSWCONF0;
             switch (currentIndex) {
                 case 1: VSW = VSWCONF1; break;
@@ -316,6 +317,8 @@ namespace A320VAU.PFD {
                 case 4: VSW = VSWCONF3; break;
                 case 5: VSW = VSWCONFFULL; break;
             }
+            */
+            float VSW = _adiru.adr.Vstall;
 
             // 2. 计算 VFE NEXT (基于目标档位)
             float VFENext = flaps.speedLimits[1];
@@ -325,6 +328,7 @@ namespace A320VAU.PFD {
                 case 4: VFENext = flaps.speedLimits[5]; break;
             }
 
+            
             // 3. 计算 VLS 偷懒操作
             float VLS = VSW * 1.13f;
 

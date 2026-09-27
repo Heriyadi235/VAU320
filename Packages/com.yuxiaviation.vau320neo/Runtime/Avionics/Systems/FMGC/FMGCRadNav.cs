@@ -1,5 +1,6 @@
 ﻿using JetBrains.Annotations;
 using UdonSharp;
+using UnityEngine;
 using VirtualCNS;
 
 namespace A320VAU.FMGC {
@@ -44,6 +45,8 @@ namespace A320VAU.FMGC {
             VOR1._SetIndex(defaultVOR1);
             VOR2._SetIndex(defaultVOR2);
             ILS._SetIndex(defaultILS);
+
+            Debug.Log($"[FMGCRadNav] Start -> ILS={defaultILS}, VOR1={defaultVOR1}, VOR2={defaultVOR2}");
        
         }
 

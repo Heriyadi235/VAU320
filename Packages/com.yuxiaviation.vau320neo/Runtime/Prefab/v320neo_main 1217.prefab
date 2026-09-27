@@ -10434,9 +10434,9 @@ WheelCollider:
   m_WheelDampingRate: 0.0001
   m_ForwardFriction:
     m_ExtremumSlip: 36
-    m_ExtremumValue: 10
+    m_ExtremumValue: 50
     m_AsymptoteSlip: 40
-    m_AsymptoteValue: 7
+    m_AsymptoteValue: 40
     m_Stiffness: 1
   m_SidewaysFriction:
     m_ExtremumSlip: 10
@@ -15926,7 +15926,7 @@ Transform:
   m_GameObject: {fileID: 2854658809156786681}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -4.390845, y: 3.6338456, z: -2.3183517}
+  m_LocalPosition: {x: -4.391713, y: 3.6343124, z: -2.3183508}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -130655,7 +130655,7 @@ MonoBehaviour:
   - {fileID: 3635232144300207691}
   Dial_Funcon: {fileID: 3572449966414959029}
   kp: 0.5
-  kd: 0.2
+  kd: 0.7
   CruiseDerivative: 0
   CruiseDerivativeLastFrame: 0
 --- !u!114 &1698837973676730664
@@ -162162,10 +162162,10 @@ WheelCollider:
   m_Mass: 220
   m_WheelDampingRate: 0.0001
   m_ForwardFriction:
-    m_ExtremumSlip: 36
-    m_ExtremumValue: 5
-    m_AsymptoteSlip: 40
-    m_AsymptoteValue: 4
+    m_ExtremumSlip: 20
+    m_ExtremumValue: 25
+    m_AsymptoteSlip: 25
+    m_AsymptoteValue: 20
     m_Stiffness: 1
   m_SidewaysFriction:
     m_ExtremumSlip: 10
@@ -165251,7 +165251,7 @@ Transform:
   m_GameObject: {fileID: 6213108216993577005}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.00000047683716, y: -7.6339846, z: -2.445001}
+  m_LocalPosition: {x: -0.0009069443, y: -7.6334705, z: -2.445}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -167723,9 +167723,9 @@ WheelCollider:
   m_WheelDampingRate: 0.0001
   m_ForwardFriction:
     m_ExtremumSlip: 36
-    m_ExtremumValue: 10
+    m_ExtremumValue: 50
     m_AsymptoteSlip: 40
-    m_AsymptoteValue: 7
+    m_AsymptoteValue: 40
     m_Stiffness: 1
   m_SidewaysFriction:
     m_ExtremumSlip: 10
@@ -174775,7 +174775,7 @@ Transform:
   m_GameObject: {fileID: 8878992096219012023}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 4.390834, y: 3.6339223, z: -2.3183517}
+  m_LocalPosition: {x: 4.3910856, y: 3.63286, z: -2.3183508}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -195449,6 +195449,16 @@ PrefabInstance:
       propertyPath: m_Layer
       value: 17
       objectReference: {fileID: 0}
+    - target: {fileID: 835394437956664082, guid: 5ae2b67e97dae074a99a5c424aaa38c4,
+        type: 3}
+      propertyPath: ils
+      value: 
+      objectReference: {fileID: 6907976169599048179}
+    - target: {fileID: 835394437956664082, guid: 5ae2b67e97dae074a99a5c424aaa38c4,
+        type: 3}
+      propertyPath: fmgc
+      value: 
+      objectReference: {fileID: 5822154038607928061}
     - target: {fileID: 835394437956664082, guid: 5ae2b67e97dae074a99a5c424aaa38c4,
         type: 3}
       propertyPath: PFD_PF

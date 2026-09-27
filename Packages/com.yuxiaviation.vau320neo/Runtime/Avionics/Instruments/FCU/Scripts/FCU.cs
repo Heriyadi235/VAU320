@@ -13,6 +13,7 @@ using UdonSharp;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
+using VirtualCNS;
 using VRC.SDKBase;
 using VRC.Udon.Common.Interfaces;
 
@@ -26,6 +27,14 @@ namespace A320VAU.FCU {
         public FMAController fmaController2;
         public PFDBasicDisplay PFD_PF;
         public PFDBasicDisplay PFD_PM;
+        public FMGC.FMGC fmgc;
+        public NavSelector ils;
+
+        public float LocalizerDeviation;
+        public float GlideSlopeDeviation;
+        public float distance;
+        public bool LocalizerCaptured;
+        public bool GlideSlopeCaptured;
 
         private DFUNC_a320_AutoThrust _ATHRDFunc;
         private DependenciesInjector _injector;
@@ -317,6 +326,8 @@ namespace A320VAU.FCU {
             verticalMode = isTrkFpaMode ? VerticalFlightMode.FPA : VerticalFlightMode.VS;
             //如果现在没有targetVS，拔出后目标VS设置为当前VS
             if (targetVS == 0f) { targetVS = Mathf.Clamp(_adiru.adr.verticalSpeed - (_adiru.adr.verticalSpeed % 1000), -6000f, 6000f); }
+            _ATHRDFunc.OP_DES = false;
+            _ATHRDFunc.OP_CLB = false;
             if (localPlayer.IsOwner(gameObject)) RequestSerialization();
         }
 
@@ -530,7 +541,17 @@ namespace A320VAU.FCU {
             fmaController.IsFlightDirector2Active = isFD2Active;
             fmaController.IsAutoThrustActive = isATHRActive;
 
-            
+            if (apprStatus != ApprModeStatus.Off || locStatus != ApprModeStatus.Off) {
+                fmaController.ApproachAbility = ApproachAbility.Cat1;
+                fmaController.ApproachMinimumType = ApproachMinimumType.RADIO;
+                fmaController.ApproachMinimumHeight = 200;
+            }
+            else {
+                fmaController.ApproachAbility = ApproachAbility.None;
+                fmaController.ApproachMinimumType = ApproachMinimumType.None;
+                fmaController.ApproachMinimumHeight = 0;
+            }
+
             fmaController.VerticalActiveMode = "";
             fmaController.LateralActiveMode = "";
             fmaController.VerticalArmMode = "";
@@ -666,7 +687,12 @@ namespace A320VAU.FCU {
             _ATHRDFunc = _injector.autoThrust;
             _adiru = _injector.adiru;
             localPlayer = Networking.LocalPlayer;
-
+            
+            if (ils == null) {
+                if(fmgc != null && fmgc.radNav != null && fmgc.radNav.ILS != null && fmgc.radNav.ILS.database && fmgc.radNav.ILS.Index >= 0 && fmgc.radNav.ILS.IsILS && fmgc.radNav.ILS.NavaidTransform != null) {
+                    ils = fmgc.radNav.ILS;
+                }
+            }
         }
 
         private void LateUpdate() {
@@ -674,7 +700,22 @@ namespace A320VAU.FCU {
             targetSpeed = Convert.ToInt32(_ATHRDFunc.SetSpeed);
             _current_altitude = _adiru.adr.pressureAltitude;
             isATHRActive = _ATHRDFunc.Cruise;
-            CheckAltitudeCapture();
+
+            if (ShouldEvaluateApproachData()) {
+                UpdateApproachData();
+                CheckApproachCapture();
+            }
+            else {
+                LocalizerDeviation = 0f;
+                GlideSlopeDeviation = 0f;
+                LocalizerCaptured = false;
+                GlideSlopeCaptured = false;
+            }
+
+            if(apprStatus == ApprModeStatus.Off) {
+                CheckAltitudeCapture();
+            }
+
             isFD1Active = PFD_PF.isFlightDirectionOn;
             isFD2Active = PFD_PM.isFlightDirectionOn;
             UpdateFCUDisplay();
@@ -730,9 +771,8 @@ namespace A320VAU.FCU {
                     bool isClimb = targetAltitude >= _current_altitude && Mathf.Abs(_current_altitude - targetAltitude) > 100f;
 
                     if (verticalGuidance == GuidanceMode.Selected)
-                        return isClimb ? "OP CLB" : "OP DES"; // 修正下划线为标准 FMA 字符串格式
-                    else
-                        return isClimb ? "CLB" : "DES";
+                        return isClimb ? "OP CLB" : "OP DES";
+                    return isClimb ? "CLB" : "DES";
                 }
 
                 // 优先级 3：常规爬升/下降/平飞阶段，若未处于 ALT/ALT* 或 G/S 阶段，自动预位 ALT
@@ -743,29 +783,17 @@ namespace A320VAU.FCU {
                     return "ALT";
                 }
 
-                //单独处理VS预位的逻辑
+                // 单独处理 VS 预位逻辑
                 if (verticalMode == VerticalFlightMode.VS) {
-                    //如果上升或下降的方向一致才会预位置alt
                     if (Mathf.Sign(altDiff) != Mathf.Sign(targetVS)) return "ALT";
                 }
-                // 默认无预位显示
-                return "";
-            }
-            else {
-                //if (verticalMode == VerticalFlightMode.SRS) {
-                    bool isClimb = targetAltitude >= _current_altitude && Mathf.Abs(_current_altitude - targetAltitude) > 100f;
-                    if (verticalGuidance == GuidanceMode.Selected)
-                        return isClimb ? "OP CLB" : "OP DES"; // 修正下划线为标准 FMA 字符串格式
-                    else
-                        return isClimb ? "CLB" : "DES";
-                //}
-                // 默认无预位显示
-                return "";
             }
 
-            
+            bool isClimbGround = targetAltitude >= _current_altitude && Mathf.Abs(_current_altitude - targetAltitude) > 100f;
+            if (verticalGuidance == GuidanceMode.Selected)
+                return isClimbGround ? "OP CLB" : "OP DES";
+            return isClimbGround ? "CLB" : "DES";
         }
-
         private string GetLateralArmedMode(bool isGrounded) {
             // 1. 航向道/盲降截获预位（按下 APPR/LOC 且尚未截获 LOC）
             if (!isGrounded) {
@@ -791,6 +819,79 @@ namespace A320VAU.FCU {
 
             }
             
+        }
+
+        private bool ShouldEvaluateApproachData() {
+            return apprStatus != ApprModeStatus.Off || locStatus != ApprModeStatus.Off;
+        }
+
+        public bool UpdateApproachData() {
+            if (!ShouldEvaluateApproachData()) {
+                LocalizerDeviation = 0f;
+                GlideSlopeDeviation = 0f;
+                LocalizerCaptured = false;
+                GlideSlopeCaptured = false;
+                return false;
+            }
+
+            LocalizerDeviation = 0f;
+            GlideSlopeDeviation = 0f;
+            LocalizerCaptured = false;
+            GlideSlopeCaptured = false;
+
+            if (ils == null || ils.NavaidTransform == null) return false;
+
+            var position = transform.position;
+            var relativePosition = ils.NavaidTransform.position - position;
+            distance = relativePosition.magnitude;
+            var courseVector = -ils.NavaidTransform.forward;
+            var isBackCourse = NavigationMath.IsBehind(ils.NavaidTransform.forward, relativePosition);
+            var maxRange = isBackCourse ? NavigationMath.LocalizerMaxBackRange : NavigationMath.LocalizerMaxWideRange;
+
+            LocalizerDeviation = NavigationMath.GetCourseDeviation(relativePosition, courseVector);
+            LocalizerCaptured = distance < maxRange && Mathf.Abs(LocalizerDeviation) < (isBackCourse || distance > NavigationMath.LocalizerMaxWideRange ? 10.0f : 35.0f);
+
+            if (ils.GlideSlopeTransform != null) {
+                var gsRelativePosition = ils.GlideSlopeTransform.position - position;
+                GlideSlopeDeviation = NavigationMath.GetGlideslopeDeviation(ils.GlideSlopeTransform.forward, ils.GlideSlopeTransform.right, gsRelativePosition);
+                GlideSlopeCaptured = Mathf.Abs(LocalizerDeviation) < 8.0f && NavigationMath.IsBetween(GlideSlopeDeviation, NavigationMath.GlideslopeMinDeviation, NavigationMath.GlideslopeMaxDeviation);
+            }
+
+            return true;
+        }
+
+        private void CheckApproachCapture() {
+            if (!ShouldEvaluateApproachData()) {
+                LocalizerDeviation = 0f;
+                GlideSlopeDeviation = 0f;
+                LocalizerCaptured = false;
+                GlideSlopeCaptured = false;
+                return;
+            }
+
+            if (ils == null || ils.NavaidTransform == null) return;
+
+            // 1. LOC 截获必须独立于 GS 进行：APPR 一旦预位，LOC 可以在合适条件下先截获。
+            bool locCaptureEligible = locStatus == ApprModeStatus.Armed || locStatus == ApprModeStatus.Engaged;
+            bool gsCaptureEligible = apprStatus == ApprModeStatus.Armed || apprStatus == ApprModeStatus.Engaged;
+
+            if (locCaptureEligible && LocalizerCaptured) {
+                locStatus = ApprModeStatus.Engaged;
+                lateralMode = LateralFlightMode.LOC;
+            }
+            else if (locStatus == ApprModeStatus.Engaged && !LocalizerCaptured && Mathf.Abs(LocalizerDeviation) > 12.0f) {
+                locStatus = ApprModeStatus.Armed;
+                if (lateralMode == LateralFlightMode.LOC) lateralMode = LateralFlightMode.HDG;
+            }
+
+            // 2. GS 截获必须在 LOC 已经建立之后再允许成立，避免“只有 GS 成功才开始跟 LOC”的错误序列。
+            if (gsCaptureEligible && locStatus == ApprModeStatus.Engaged && GlideSlopeCaptured) {
+                apprStatus = ApprModeStatus.Engaged;
+                verticalMode = VerticalFlightMode.GS;
+                _ATHRDFunc.OP_CLB = false;
+                _ATHRDFunc.OP_DES = false;
+            }
+            // 为了调试控制器，当前先屏蔽 GS 失锁降级逻辑，避免在调参阶段频繁回退。
         }
 
         private void CheckAltitudeCapture() {

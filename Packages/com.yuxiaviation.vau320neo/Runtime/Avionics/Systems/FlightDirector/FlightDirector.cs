@@ -1,6 +1,7 @@
 ﻿using UdonSharp;
 using UnityEngine;
 using VRC.SDKBase;
+using VirtualCNS;
 
 using A320VAU.FCU;
 using VRC.Core;
@@ -38,6 +39,16 @@ namespace A320VAU.Avionics {
         [Header("滚转环")]
         public float headingKp = 1.2f;
 
+        [Header("进近控制参数 (可调试)")]
+        public float gsPitchGain = 23.0f;
+        public float gsPitchDamping = 2.5f;
+        public float locRollGain = 20.0f;
+        public float locRollDamping = 3.0f;
+        public float approachDistanceFar = 4000.0f;
+        public float approachDistanceNear = 1000.0f;
+
+        public float targetHdg = 0f;
+
         [Header("工作状态")]
         public FCU.VerticalFlightMode vMode = FCU.VerticalFlightMode.None;
         public FCU.LateralFlightMode lMode = FCU.LateralFlightMode.None;
@@ -68,7 +79,7 @@ namespace A320VAU.Avionics {
         [SerializeField] private float currentPitch;
         [SerializeField] private float currentRoll;
         [SerializeField] private float currentTrackPitch;
-        [SerializeField] private float currentTrackBank;
+        [SerializeField] private float currentTrackSlip;
         [SerializeField] private float currentHeading;
         [SerializeField] private float currentAltitudeRA;
         [SerializeField] private float currentAltitude;
@@ -78,21 +89,24 @@ namespace A320VAU.Avionics {
         [HideInInspector] public float debugCurrentPitch;
         [HideInInspector] public float debugTargetRoll;
         [HideInInspector] public float debugCurrentRoll;
-        
-        
+
+        private float _lastGsError;
+        private float _lastLocError;
+        private bool _hasLastGsError;
+        private bool _hasLastLocError;
 
         private void Start() {
             localPlayer = Networking.LocalPlayer;
         }
 
-        public void UpdateFDLogic(float IAS, float vs ,float pitch, float roll, float trackPitch, float trackBank,
+        public void UpdateFDLogic(float IAS, float vs ,float pitch, float roll, float trackPitch, float trackSlip,
             float heading, float PressureAltitude,float altRA, bool grounded) {
             currentIAS = IAS;
             currentVertSpeed = vs;
             currentPitch = pitch;
             currentRoll = roll;
             currentTrackPitch = trackPitch;
-            currentTrackBank = trackBank;
+            currentTrackSlip = trackSlip;
 
             currentHeading = heading;
             currentAltitudeRA = altRA;
@@ -107,6 +121,17 @@ namespace A320VAU.Avionics {
             // 读取 FCU 模式状态
             isFPDMode = fcu.isTrkFpaMode;
 
+            if (fcu.ils != null) {
+                currentRWYHeading = fcu.ils.Course;
+            }
+
+            if (vMode != FCU.VerticalFlightMode.GS) {
+                _hasLastGsError = false;
+            }
+            if (lMode != FCU.LateralFlightMode.LOC) {
+                _hasLastLocError = false;
+            }
+
             // 1. 垂直模式解算
             vMode = fcu.verticalMode;
 
@@ -114,6 +139,10 @@ namespace A320VAU.Avionics {
             lMode = fcu.lateralMode;
             switch (lMode) {
                 case FCU.LateralFlightMode.RWY: {
+                        fcu.targetHeading = currentRWYHeading;
+                        break;
+                    }
+                case FCU.LateralFlightMode.LOC: {
                         fcu.targetHeading = currentRWYHeading;
                         break;
                     }
@@ -149,10 +178,31 @@ namespace A320VAU.Avionics {
             UpdateFDVisibilities(vMode, lMode);
         }
 
+        private float GetApproachDistanceGain(float currentDistance) {
+            if (fcu == null) return 1.0f;
+            if (approachDistanceFar <= approachDistanceNear) return 1.0f;
+            if (float.IsNaN(currentDistance) || float.IsInfinity(currentDistance)) return 1.0f;
+            return Mathf.Clamp01(Mathf.InverseLerp(approachDistanceNear, approachDistanceFar, currentDistance));
+        }
+
         private float CalculateTargetPitch(VerticalFlightMode vMode) {
             float targetPitchDeg = 0f;
 
             switch (vMode) {
+                case VerticalFlightMode.GS:
+                    float gsError = fcu.GlideSlopeDeviation;
+                    float gsDerivative = 0f;
+                    if (_hasLastGsError) {
+                        gsDerivative = (gsError - _lastGsError) / Mathf.Max(Time.deltaTime, 0.0166667f);
+                    }
+                    _lastGsError = gsError;
+                    _hasLastGsError = true;
+
+                    float gsGain = gsPitchGain * GetApproachDistanceGain(fcu.distance);
+                    float gsPd = (gsGain * gsError) + (gsPitchDamping * gsDerivative);
+                    targetPitchDeg = Mathf.Clamp(gsPd, -12.0f, 12.0f);
+                    return targetPitchDeg;
+
                 case VerticalFlightMode.SRS:
                     // 起飞 SRS 模式：维持 V2+10kt 姿态，基础给 15 度目标俯仰角
                     //return 15.0f;
@@ -223,16 +273,60 @@ namespace A320VAU.Avionics {
 
         private float CalculateTargetRoll(LateralFlightMode lMode) {
             switch (lMode) {
+                case LateralFlightMode.LOC:
+                {
+                    float locError = fcu.LocalizerDeviation;
+                    /*
+                    float locDerivative = 0f;
+                    if (_hasLastLocError) {
+                        locDerivative = (locError - _lastLocError) / Mathf.Max(Time.deltaTime, 0.0166667f);
+                    }
+                    _lastLocError = locError;
+                    _hasLastLocError = true;
+
+                    float locGain = locRollGain * GetApproachDistanceGain(fcu.distance);
+                    float locPd = (locError * locGain) + (locRollDamping * locDerivative);
+                    float locBank = Mathf.Clamp(locPd, -20.0f, 20.0f);
+
+                    float courseHeading = currentRWYHeading;
+                    if (fcu != null && fcu.ils != null) {
+                        courseHeading = fcu.ils.Course;
+                    }
+
+                    // 真实 LOC 截获时，不只是盯着 beam 中心，还必须把航向收敛到跑道航向。
+                    // 当飞机偏离航道较大时，优先修正航向回到跑道航向；接近中心线后，再强制精确对中。
+                    float headingError = Mathf.DeltaAngle(currentHeading, courseHeading) - currentTrackSlip;
+                    float headingBank = Mathf.Clamp(headingError * headingKp, -20.0f, 20.0f);
+
+                    float headingErrorAbs = Mathf.Abs(locError);
+                    float transitionStart = 0.2f;
+                    float transitionEnd = 30.0f;
+                    float locWeight = Mathf.Clamp01(Mathf.InverseLerp(transitionStart, transitionEnd, headingErrorAbs));
+                    float courseWeight = 1.0f - locWeight;
+                    float targetBank = (locBank * locWeight) + (headingBank * courseWeight);
+                    */
+
+                    //另一种假装计算航向的方法
+                    //首先获取偏差，根据偏差的正负计算当前目标航向
+                    var locDeviation01  = Mathf.Clamp01(Mathf.InverseLerp(-5f, 5f, locError));
+                    targetHdg = Mathf.Lerp(currentRWYHeading - 60.0f, currentRWYHeading + 60.0f , locDeviation01);
+                    float hdgError = Mathf.DeltaAngle(currentHeading, targetHdg) - currentTrackSlip;//试验一下正负
+                    float headingTargetBank = Mathf.Clamp(hdgError * headingKp, -25.0f, 25.0f);
+                    Debug.Log("LOC debug | locDeviation01=" + locDeviation01 + " | targetHdg=" + targetHdg
+ + " | hdgError=" + hdgError);
+                    return headingTargetBank;
+                }
                 case LateralFlightMode.HDG:
                 case LateralFlightMode.RWY_TRK:
                 case LateralFlightMode.RWY:
                 case LateralFlightMode.TRK:
-                    float targetHdg = fcu.targetHeading;
-                    float hdgError = Mathf.DeltaAngle(currentHeading, targetHdg) - currentTrackBank;//试验一下正负
+                {
+                    targetHdg = fcu.targetHeading;
+                    float hdgError = Mathf.DeltaAngle(currentHeading, targetHdg) - currentTrackSlip;//试验一下正负
                     // P 比例计算目标坡度，限制最大坡度为 25 度
-                    float targetBank = Mathf.Clamp(hdgError * headingKp, -25.0f, 25.0f);
-                    return targetBank;
-
+                    float headingTargetBank = Mathf.Clamp(hdgError * headingKp, -25.0f, 25.0f);
+                    return headingTargetBank;
+                }
 
                 default:
                     return currentRoll;

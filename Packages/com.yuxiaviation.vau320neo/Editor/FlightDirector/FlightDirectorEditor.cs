@@ -56,6 +56,12 @@ namespace A320VAU.Avionics {
                 EditorGUI.ProgressBar(EditorGUILayout.GetControlRect(), fd.fdHorNormalized, $"FD_hor (滚转): {fd.fdHorNormalized:F3}");
 
                 EditorGUILayout.Space(5);
+                EditorGUILayout.LabelField("--- 进近调参 ---", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField($"distance: {((fd.fcu != null) ? fd.fcu.distance : 0f):F1} m");
+                EditorGUILayout.LabelField($"GS Gain: {fd.gsPitchGain:F2} | LOC Gain: {fd.locRollGain:F2}");
+                EditorGUILayout.LabelField($"Far/Near: {fd.approachDistanceFar:F0} / {fd.approachDistanceNear:F0} m");
+
+                EditorGUILayout.Space(5);
                 EditorGUILayout.HelpBox(
                     $"[俯仰通道] 目标: {fd.debugTargetPitch:F2}° | 当前: {fd.debugCurrentPitch:F2}° | 偏差: {(fd.debugTargetPitch - fd.debugCurrentPitch):F2}°\n" +
                     $"[滚转通道] 目标: {fd.debugTargetRoll:F2}° | 当前: {fd.debugCurrentRoll:F2}° | 偏差: {(fd.debugTargetRoll - fd.debugCurrentRoll):F2}°",
